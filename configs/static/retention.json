@@ -27,7 +27,7 @@
     },
     {
       "name": "Whisparr Backups",
-      "path": "/media/Backup/wishparr/scheduled",
+      "path": "/media/Backup/whisparr/scheduled",
       "keep": 5
     }
   ]

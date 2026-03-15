@@ -1,37 +1,34 @@
 #!/bin/bash
 # lib/utils.sh
 # Descripción: Biblioteca central de funciones para el Framework Confiraspa
-# Versión: 1.4.0 (Hardened + TTY Aware + Deterministic Network)
-# Autor: Juan José Hipólito (Refactorizado con Peer Review Senior)
+# Versión: 1.4.1 (C2 & C3 Hardened Fix)
+# Autor: Juan José Hipólito
 
 # --- 1. CONFIGURACIÓN DEL ENTORNO ---
 
-export UTILS_VERSION="1.4.0"
+export UTILS_VERSION="1.4.1"
 
-# Detectar directorios base si no están definidos
+# Detectar directorios base
 if [ -z "${INSTALL_DIR:-}" ]; then
     export INSTALL_DIR="$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")"
 fi
 export CONFIG_DIR="${INSTALL_DIR}/configs"
 export LOG_DIR="${INSTALL_DIR}/logs"
 
-# Variable de estado para APT
-APT_UPDATED=false
+# --- C3 FIX: Inicialización segura de variables de estado ---
+# Esto evita el error 'unbound variable' cuando set -u está activo
+APT_UPDATED="${APT_UPDATED:-false}"
 
 # Definición de colores ANSI (Solo si es TTY interactiva)
 if [ -t 2 ]; then
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[0;33m'
-    BLUE='\033[0;34m'
-    MAGENTA='\033[0;35m'
-    CYAN='\033[0;36m'
-    NC='\033[0m' # No Color
+    source "${INSTALL_DIR}/lib/colors.sh" 2>/dev/null || {
+        RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; 
+        BLUE='\033[0;34m'; MAGENTA='\033[0;35m'; CYAN='\033[0;36m'; NC='\033[0m'
+    }
 else
     RED=''; GREEN=''; YELLOW=''; BLUE=''; MAGENTA=''; CYAN=''; NC=''
 fi
 
-# Variable de log global
 LOG_FILE="${LOG_FILE:-}"
 
 # --- 2. SISTEMA DE LOGGING ---
@@ -41,15 +38,11 @@ _log_print() {
     local color="$2"
     local message="$3"
     local timestamp=$(date +'%Y-%m-%d %H:%M:%S')
-    # Trazabilidad: intenta obtener el script que llamó a la librería
     local script_name=$(basename "${BASH_SOURCE[2]:-$0}") 
 
-    # Salida por pantalla (stderr)
     echo -e "${color}[${timestamp}] [${level}]${NC} ${message}" >&2
 
-    # Salida a archivo (si existe y es escribible)
     if [[ -n "$LOG_FILE" ]]; then
-        # Eliminamos códigos ANSI para el log de texto plano
         echo "[${timestamp}] [${level}] [${script_name}] ${message}" | sed 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE"
     fi
 }
@@ -69,22 +62,21 @@ log_success() { _log_print "OK"   "${GREEN}" "$1"; }
 log_warning() { _log_print "WARN" "${YELLOW}" "$1"; }
 log_error()   { _log_print "ERROR" "${RED}" "$1"; }
 
-log_debug() {
-    [[ "${DEBUG:-false}" = true ]] && _log_print "DEBUG" "$CYAN" "$1"
+init_logging() {
+    mkdir -p "$(dirname "$1")"
+    touch "$1"
 }
 
 # --- 3. GESTIÓN DE ERRORES E INICIALIZACIÓN ---
 
 setup_error_handling() {
     set -o pipefail
-    # Trap global para errores inesperados
     trap 'log_error "Error inesperado en línea $LINENO (Exit Code: $?)"' ERR
 }
 
 setup_paths() {
     mkdir -p "$CONFIG_DIR" "$LOG_DIR"
     chmod 755 "$LOG_DIR"
-    
     if [[ -z "$LOG_FILE" ]]; then
         local script_name=$(basename "$0" .sh)
         LOG_FILE="${LOG_DIR}/${script_name}.log"
@@ -95,16 +87,8 @@ setup_paths() {
 
 # --- 4. VALIDACIONES DE SISTEMA ---
 
-check_root() {
-    if [[ $EUID -ne 0 ]]; then
-        log_error "Este script requiere privilegios de root (sudo)."
-        exit 1
-    fi
-}
-
 check_network_connectivity() {
     local target="${1:-8.8.8.8}"
-    # Ping con timeout estricto (1s) para no bloquear
     if ! ping -c 1 -W 1 "$target" &>/dev/null; then
         log_warning "Sin conectividad con $target. Operaciones de red pueden fallar."
         return 1
@@ -112,22 +96,13 @@ check_network_connectivity() {
     return 0
 }
 
-# Verifica espacio: df -Pm (POSIX output, en MB)
 check_disk_space() {
     local path="$1"
     local min_mb="${2:-1024}"
-    
-    if [ ! -d "$path" ]; then
-        # Si no existe, chequeamos el padre (donde se crearía)
-        path=$(dirname "$path")
-    fi
-
-    # awk 'END...' es más seguro que NR==2 para salidas multilínea
-    local available
-    available=$(df -Pm "$path" | awk 'END {print $4}')
-    
+    [ ! -d "$path" ] && path=$(dirname "$path")
+    local available=$(df -Pm "$path" | awk 'END {print $4}')
     if [ "$available" -lt "$min_mb" ]; then
-        log_error "Espacio insuficiente en $path. Libres: ${available}MB (Requerido: ${min_mb}MB)"
+        log_error "Espacio insuficiente en $path. Libres: ${available}MB (Mínimo: ${min_mb}MB)"
         return 1
     fi
     return 0
@@ -143,7 +118,6 @@ get_system_arch() {
     esac
 }
 
-# Obtiene la IP de la ruta por defecto (más fiable que hostname -I)
 get_ip_address() {
     ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}' || echo "127.0.0.1"
 }
@@ -157,13 +131,12 @@ is_package_installed() {
 ensure_package() {
     local pkg="$1"
     if ! is_package_installed "$pkg"; then
-        # Si es la primera vez que instalamos algo, actualizamos índices
+        # Uso seguro de APT_UPDATED gracias a la inicialización al principio del archivo
         if [ "$APT_UPDATED" = false ]; then
             log_info "Actualizando índices de APT (Lazy Update)..."
             execute_cmd "apt-get update -qq"
             APT_UPDATED=true
         fi
-        
         log_info "Instalando dependencia: $pkg..."
         execute_cmd "apt-get install -y -qq $pkg" "Instalación de $pkg"
     fi
@@ -171,22 +144,18 @@ ensure_package() {
 
 # --- 6. EJECUCIÓN SEGURA Y BACKUPS ---
 
-# Wrapper para ejecutar comandos (Mantiene compatibilidad con strings)
-# Nota: Se mantiene 'eval' para no romper scripts existentes que pasan argumentos en string.
+# C2 FIX: Sustitución de 'eval' por 'bash -c' para mayor aislamiento y seguridad
 execute_cmd() {
     local cmd="$1"
     local msg="${2:-Ejecutando: $cmd}"
 
-    if [[ -n "$2" ]]; then log_info "$msg"; else log_info "Exec: $cmd"; fi
+    [[ -n "$2" ]] && log_info "$msg" || log_info "Exec: $cmd"
 
     if [[ "${DRY_RUN:-false}" = true ]]; then
         echo -e "${YELLOW}  [DRY-RUN]${NC} $cmd"
         return 0
     fi
 
-    # MEJORA: Usamos 'bash -c' en lugar de 'eval'. 
-    # Es mucho más seguro contra inyecciones y aísla el entorno,
-    # manteniendo la compatibilidad con pipes y redirecciones.
     if bash -c "$cmd" >> "${LOG_FILE:-/dev/null}" 2>&1; then
         return 0
     else
@@ -204,7 +173,6 @@ create_backup() {
         cp -a "$file" "$backup"
     fi
 }
-
 # --- 7. DESCARGAS ROBUSTAS (RETRY LOGIC) ---
 
 download_secure() {

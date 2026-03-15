@@ -1,21 +1,30 @@
 #!/bin/bash
+# bootstrap.sh — Versión Corregida 2.3.1
 set -euo pipefail
 
-# CORRECCIÓN: Espacio añadido después del if
+# C1: Espacio corregido entre if y [
 if [ "$(id -u)" -ne 0 ]; then
-    echo "Por favor, ejecuta como root: sudo ./bootstrap.sh"
+    echo "ERROR: Debe ejecutarse como root (sudo ./bootstrap.sh)"
     exit 1
 fi
 
-echo "📦 Instalando dependencias mínimas..."   
+echo "📦 Instalando dependencias base..."
 apt-get update -qq
 apt-get install -y git jq curl
 
-if[ ! -f .env ]; then
-    echo "⚠️ No se encontró .env. Creando desde ejemplo..." 
+# C4: Hacer ejecutables los scripts SIEMPRE, antes de entrar en la lógica del .env
+log_info "Asegurando permisos de ejecución en scripts..."
+find . -name "*.sh" -exec chmod +x {} +
+
+if [ ! -f .env ]; then
+    log_warning "No se encontró .env. Creando desde plantilla..."
     cp .env.example .env
-    echo "EDITA el archivo .env (nano .env) antes de continuar."
-else
-    chmod +x install.sh scripts/*/*.sh
-    echo "✅ Entorno listo. Ejecuta: sudo ./install.sh" 
+    echo "-------------------------------------------------------"
+    echo "⚠️ ACCIÓN REQUERIDA: Edita el archivo .env ahora mismo."
+    echo "Comando: nano .env"
+    echo "-------------------------------------------------------"
+    # Salimos aquí para que el usuario configure y luego lance install.sh
+    exit 0
 fi
+
+echo "✅ Entorno listo. Ejecuta: sudo ./install.sh"
