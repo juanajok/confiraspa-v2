@@ -1,0 +1,5 @@
+
+=== Iniciando Confiraspa Framework v2.3 ===
+[2026-03-16 00:14:28] [INFO] [install.sh] IP Detectada: 192.168.1.147
+[2026-03-16 00:14:28] [INFO] [install.sh] Log de sesión: /mnt/Datos/Documentos/Repos/confiraspa V2/logs/install_20260316_001428.log
+[2026-03-16 00:14:28] [ERROR] [install.sh] Falta el archivo .env. Copia .env.example y configúralo.
