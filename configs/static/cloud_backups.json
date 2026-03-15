@@ -1,0 +1,49 @@
+{
+  "jobs": [
+    {
+      "name": "Backup Paula",
+      "origen": "GDriveJuanjo:Paula",
+      "destino": "/media/Backup/Paula"
+    },
+    {
+      "name": "Biblioteca Libros",
+      "origen": "GDriveJuanjo:Libros",
+      "destino": "/media/Backup/Libros"
+    },
+    {
+      "name": "Colección Tebeos",
+      "origen": "GDriveJuanjo:Tebeos",
+      "destino": "/media/Backup/Tebeos"
+    },
+    {
+      "name": "Documentos Renta",
+      "origen": "GDriveJuanjo:Renta",
+      "destino": "/media/Backup/Juanjo/Renta"
+    },
+    {
+      "name": "Backup Papa",
+      "origen": "GDriveJuanjo:Backup Papa",
+      "destino": "/media/Backup/Juanjo/Papa"
+    },
+    {
+      "name": "Documentación Coche",
+      "origen": "GDriveJuanjo:docu para el coche",
+      "destino": "/media/Backup/Juanjo/Coche"
+    },
+    {
+      "name": "Documentos Comunes",
+      "origen": "GDriveJuanjo:Documentos comunes",
+      "destino": "/media/Backup/Documentos"
+    },
+    {
+      "name": "Backup Diego",
+      "origen": "GDriveJuanjo:Diego",
+      "destino": "/media/Backup/Diego"
+    },
+    {
+      "name": "Google Photos Backup",
+      "origen": "GPhotosJuanjo:media/by-month",
+      "destino": "/media/Backup/FotosGooglePhotos"
+    }
+  ]
+}

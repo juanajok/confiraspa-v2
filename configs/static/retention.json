@@ -1,0 +1,34 @@
+{
+  "policies": [
+    {
+      "name": "Radarr Backups",
+      "path": "/media/Backup/radarr/scheduled",
+      "keep": 5
+    },
+    {
+      "name": "Sonarr Backups",
+      "path": "/media/Backup/sonarr/scheduled",
+      "keep": 5
+    },
+    {
+      "name": "Readarr Backups",
+      "path": "/media/Backup/readarr/scheduled",
+      "keep": 5
+    },
+    {
+      "name": "Lidarr Backups",
+      "path": "/media/Backup/lidarr/scheduled",
+      "keep": 5
+    },
+    {
+      "name": "Prowlarr Backups",
+      "path": "/media/Backup/prowlarr/scheduled",
+      "keep": 5
+    },
+    {
+      "name": "Whisparr Backups",
+      "path": "/media/Backup/wishparr/scheduled",
+      "keep": 5
+    }
+  ]
+}

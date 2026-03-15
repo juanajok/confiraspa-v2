@@ -1,0 +1,48 @@
+{
+  "jobs": [
+    {
+      "name": "confiraspa_backup_cloud",
+      "path": "/var/log/rclone_backup.log",
+      "rotate": 7,
+      "daily": true,
+      "compress": true,
+      "missingok": true,
+      "notifempty": true,
+      "create": "0640 root adm",
+      "copytruncate": true
+    },
+    {
+      "name": "confiraspa_backup_local",
+      "path": "/var/log/backup_rsync.log",
+      "rotate": 7,
+      "daily": true,
+      "compress": true,
+      "missingok": true,
+      "notifempty": true,
+      "create": "0640 root adm",
+      "copytruncate": true
+    },
+    {
+      "name": "confiraspa_permissions",
+      "path": "/var/log/permissions_fix.log",
+      "rotate": 4,
+      "weekly": true,
+      "compress": true,
+      "missingok": true,
+      "notifempty": true,
+      "create": "0640 root adm",
+      "copytruncate": true
+    },
+    {
+      "name": "confiraspa_clean_downloads",
+      "path": "/var/log/clean_downloads.log",
+      "rotate": 7,
+      "daily": true,
+      "compress": true,
+      "missingok": true,
+      "notifempty": true,
+      "create": "0640 root adm",
+      "copytruncate": true
+    }
+  ]
+}

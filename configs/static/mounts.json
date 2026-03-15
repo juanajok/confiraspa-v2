@@ -1,0 +1,25 @@
+{
+  "puntos_de_montaje": [
+    {
+      "label": "WDElements",
+      "uuid": "13a9b327-da1c-4b7a-8eeb-bdd3993bad7d",
+      "ruta": "/media/WDElements",
+      "fstype": "ext4",
+      "opciones": "defaults,noatime,nofail"
+    },
+    {
+      "label": "DiscoDuro",
+      "uuid": "1601eb8d-43d1-4ee4-974e-82466c4c945b",
+      "ruta": "/media/DiscoDuro",
+      "fstype": "ext4",
+      "opciones": "defaults,noatime,nofail"
+    },
+    {
+      "label": "Backup",
+      "uuid": "78304c4a-7a44-470a-872e-0eeef941b35c",
+      "ruta": "/media/Backup",
+      "fstype": "ext4",
+      "opciones": "defaults,noatime,nofail"
+    }
+  ]
+}
