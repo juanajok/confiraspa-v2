@@ -16,7 +16,7 @@ source "$REPO_ROOT/lib/validators.sh"
 
 # --- VARIABLES Y LOCKING ---
 readonly CONFIG_FILE="$REPO_ROOT/configs/static/retention.json"
-readonly LOCK_FILE="/var/run/confiraspa_cleanup.lock"
+readonly LOCK_FILE="/run/lock/confiraspa_cleanup.lock"
 
 # Evitar ejecución concurrente (Locking)
 exec 200>"$LOCK_FILE"

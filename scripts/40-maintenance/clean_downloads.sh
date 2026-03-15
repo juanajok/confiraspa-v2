@@ -30,7 +30,7 @@ readonly JUNK_EXTENSIONS=("txt" "nfo" "url" "website" "srt" "jpg" "png" "exe" "h
 readonly MIN_AGE_MINUTES="+15" # Solo archivos con más de 15 min de antigüedad
 
 # Lockfile
-readonly LOCK_FILE="/var/run/confiraspa_cleaner.lock"
+readonly LOCK_FILE="/run/lock/confiraspa_cleaner.lock"
 exec 200>"$LOCK_FILE"
 flock -n 200 || { log_error "El limpiador ya está corriendo."; exit 1; }
 

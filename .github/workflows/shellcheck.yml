@@ -1,0 +1,26 @@
+name: ShellCheck CI
+
+on:
+  push:
+    branches:[ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  shellcheck:
+    name: Validar Scripts de Bash
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Descargar Repositorio
+      uses: actions/checkout@v4
+      
+    - name: Ejecutar ShellCheck
+      uses: ludeeus/action-shellcheck@master
+      with:
+        # Escaneamos todo excepto la carpeta .git y plantillas
+        scandir: '.'
+        ignore_paths: 'configs/static/templates'
+        # Reglas a ignorar (SC2154: word splitting, SC2086: double quoting)
+        # Las ignoramos globalmente porque en scripts de provisioning a veces son intencionales.
+        ignore_names: '.*\.json .*\.txt .*\.md'

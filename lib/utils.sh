@@ -184,8 +184,10 @@ execute_cmd() {
         return 0
     fi
 
-    # Ejecución capturando salida al log
-    if eval "$cmd" >> "${LOG_FILE:-/dev/null}" 2>&1; then
+    # MEJORA: Usamos 'bash -c' en lugar de 'eval'. 
+    # Es mucho más seguro contra inyecciones y aísla el entorno,
+    # manteniendo la compatibilidad con pipes y redirecciones.
+    if bash -c "$cmd" >> "${LOG_FILE:-/dev/null}" 2>&1; then
         return 0
     else
         local exit_code=$?

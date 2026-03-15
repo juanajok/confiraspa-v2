@@ -18,7 +18,7 @@ source "$REPO_ROOT/lib/validators.sh"
 # --- VARIABLES ---
 readonly CONFIG_FILE="$REPO_ROOT/configs/static/cloud_backups.json"
 readonly LOG_FILE="/var/log/rclone_backup.log"
-readonly LOCK_FILE="/var/run/confiraspa_rclone.lock"
+readonly LOCK_FILE="/run/lock/confiraspa_rclone.lock"
 
 # Flags globales como Array (Más seguro que strings)
 readonly RCLONE_FLAGS=(
