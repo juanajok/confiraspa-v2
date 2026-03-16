@@ -53,8 +53,12 @@ ensure_package "build-essential"
 # 2. Verificación de Identidad
 log_info "Verificando usuario de servicio ($USER_NAME)..."
 if ! id "$USER_NAME" &>/dev/null; then
-    log_error "El usuario '$USER_NAME' no existe. Ejecuta 'scripts/00-system/10-users.sh' primero."
-    exit 1
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log_warning "[DRY-RUN] Usuario '$USER_NAME' no existe en este entorno (normal en simulación)."
+    else
+        log_error "El usuario '$USER_NAME' no existe. Ejecuta 'scripts/00-system/10-users.sh' primero."
+        exit 1
+    fi
 fi
 
 # 3. Instalación de Código Fuente (Idempotente)
@@ -76,14 +80,19 @@ else
     mkdir -p "$INSTALL_DIR"
     
     log_info "Extrayendo..."
-    # -q: quiet, -o: overwrite without prompting, -d: destination
-    execute_cmd "unzip -q -o $TEMP_FILE -d $INSTALL_DIR"
-    
-    # HARDENING: Validación post-extracción
-    if [ ! -f "$INSTALL_DIR/bazarr.py" ]; then
-        log_error "Error crítico: bazarr.py no encontrado tras la extracción."
-        log_error "La estructura del zip oficial puede haber cambiado."
-        exit 1
+    execute_cmd "unzip -q -o $TEMP_FILE -d $INSTALL_DIR" "Extrayendo archivos de Bazarr"
+
+    # --- CORRECCIÓN AQUÍ ---
+    # Solo validamos la existencia si NO estamos en modo Dry-Run
+    if [[ "${DRY_RUN:-false}" == "false" ]]; then
+        if [ ! -f "$INSTALL_DIR/bazarr.py" ]; then
+            log_error "Error crítico: bazarr.py no encontrado tras la extracción."
+            log_error "Es posible que la estructura del zip oficial haya cambiado."
+            exit 1
+        fi
+        log_success "Validación de binarios completada."
+    else
+        log_warning "[DRY-RUN] Saltando validación de archivos (el archivo aún no existe)."
     fi
 fi
 
@@ -147,14 +156,14 @@ EOF
 # 7. Arranque
 execute_cmd "systemctl daemon-reload"
 
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     log_info "Servicio ya activo."
 else
     execute_cmd "systemctl enable --now $SERVICE" "Iniciando servicio"
 fi
 
 # 8. Verificación Final
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     IP=$(hostname -I | awk '{print $1}')
     log_success "Bazarr instalado correctamente."
     log_info "---------------------------------------------------"

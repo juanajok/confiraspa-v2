@@ -53,13 +53,18 @@ ensure_package "libopengl0"
 # 2. Gestión de Usuario
 log_info "Configurando identidad del servicio..."
 
+# Verificar si el usuario existe (de forma segura para Dry-Run)
 if ! id "$CALIBRE_USER" &>/dev/null; then
-    execute_cmd "useradd --system --shell /bin/false --home-dir /var/lib/calibre $CALIBRE_USER" "Creando usuario $CALIBRE_USER"
+    execute_cmd "Creando usuario $CALIBRE_USER" "useradd --system --shell /bin/false --home-dir /var/lib/calibre $CALIBRE_USER"
 fi
 
-# INTEGRACIÓN NAS: Añadir calibre al grupo 'media'
-if ! id -nG "$CALIBRE_USER" | grep -qw "$MEDIA_GROUP"; then
-    execute_cmd "usermod -aG $MEDIA_GROUP $CALIBRE_USER" "Integrando en grupo $MEDIA_GROUP"
+# INTEGRACIÓN NAS: Solo intentar añadir al grupo si el usuario existe o no es Dry-Run
+if [[ "${DRY_RUN:-false}" == "false" ]]; then
+    if ! id -nG "$CALIBRE_USER" | grep -qw "$MEDIA_GROUP"; then
+        execute_cmd "Integrando en grupo $MEDIA_GROUP" "usermod -aG $MEDIA_GROUP $CALIBRE_USER"
+    fi
+else
+    log_warning "[DRY-RUN] Saltando integración de grupos (el usuario aún no existe físicamente)."
 fi
 
 # 3. Instalación de Binarios (Oficial)
@@ -70,13 +75,15 @@ else
     
     # Instalación directa sin 'eval' (Más seguro y robusto)
     # isolated=y: No toca /usr/bin, todo queda en /opt/calibre
-    wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | \
-        execute_cmd "sh /dev/stdin install_dir=$INSTALL_DIR isolated=y" "Ejecutando instalador oficial"
-    
     # Verificación post-instalación
-    if [ ! -x "$INSTALL_DIR/calibre-server" ]; then
-        log_error "La instalación parece haber fallado. No se encuentra el binario."
-        exit 1
+    if [[ "${DRY_RUN:-false}" == "false" ]]; then
+        if [ ! -x "$INSTALL_DIR/calibre-server" ]; then
+            log_error "La instalación parece haber fallado. No se encuentra el binario."
+            exit 1
+        fi
+        log_success "Calibre instalado correctamente."
+    else
+        log_warning "[DRY-RUN] Validación de binario omitida (instalación no ejecutada)."
     fi
 fi
 
@@ -124,7 +131,7 @@ EOF
 # 6. Arranque
 execute_cmd "systemctl daemon-reload"
 
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     log_info "Servicio ya activo. Reiniciando para aplicar cambios..."
     execute_cmd "systemctl restart $SERVICE"
 else
@@ -132,7 +139,7 @@ else
 fi
 
 # 7. Verificación
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     IP=$(hostname -I | awk '{print $1}')
     log_success "Calibre Server operativo."
     log_info "---------------------------------------------------"

@@ -20,6 +20,11 @@ if [ -f "/boot/firmware/config.txt" ]; then
     CONFIG_FILE="/boot/firmware/config.txt"
 elif [ -f "/boot/config.txt" ]; then
     CONFIG_FILE="/boot/config.txt"
+elif [[ "${DRY_RUN:-false}" == "true" ]]; then
+    # MEJORA: Si es dry-run y no estamos en una Pi, simulamos el archivo
+    log_warning "[DRY-RUN] Entorno no-RPi detectado. Simulando archivo de configuración."
+    CONFIG_FILE="/tmp/config.txt.sim"
+    touch "$CONFIG_FILE"
 else
     log_error "No se encontró config.txt en /boot ni /boot/firmware. ¿Es Raspberry Pi OS?"
     exit 1
@@ -71,7 +76,7 @@ SERVICE="vncserver-x11-serviced.service"
 
 log_info "Gestionando servicio VNC..."
 
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     log_success "El servicio VNC ya está corriendo."
 else
     execute_cmd "systemctl unmask $SERVICE" || true # Por si acaso estaba enmascarado

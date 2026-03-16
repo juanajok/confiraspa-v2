@@ -62,11 +62,11 @@ fi
 log_info "Generando configuración NAS..."
 
 # Aseguramos que la carpeta "completo" exista antes de compartirla
+# CORRECCIÓN: Envolvemos los comandos en execute_cmd para respetar el modo dry-run
 if [ ! -d "$DIR_TORRENTS" ]; then
-    log_info "Creando directorio de descargas: $DIR_TORRENTS"
-    mkdir -p "$DIR_TORRENTS"
-    chown "$SMB_USER:media" "$DIR_TORRENTS"
-    chmod 775 "$DIR_TORRENTS"
+    execute_cmd "mkdir -p $DIR_TORRENTS" "Creando directorio de descargas"
+    execute_cmd "chown $SMB_USER:media $DIR_TORRENTS" "Asignando propietario"
+    execute_cmd "chmod 775 $DIR_TORRENTS" "Ajustando permisos"
 fi
 
 # Inyectamos las variables de RUTAS PADRE
@@ -74,11 +74,11 @@ envsubst '${SMB_WORKGROUP} ${SMB_USER} ${PATH_LIBRARY} ${PATH_BACKUP} ${DIR_TORR
     execute_cmd "tee $TARGET_CONF" > /dev/null
 
 # 4. Verificación y Restauración
-if ! testparm -s "$TARGET_CONF" > /dev/null 2>&1; then
-    log_error "Configuración inválida."
-    if [ -n "$BACKUP_FILE" ]; then
+if ! run_check "testparm -s $TARGET_CONF" "Verificando smb.conf"; then
+    log_error "Configuración de Samba inválida."
+    if [[ -n "${BACKUP_FILE-}" && -f "$BACKUP_FILE" ]]; then
         cp "$BACKUP_FILE" "$TARGET_CONF"
-        log_warning "Backup restaurado."
+        log_warning "Backup de Samba restaurado."
     fi
     exit 1
 fi
@@ -86,8 +86,12 @@ fi
 # 5. Usuarios y Servicios
 log_info "Actualizando usuario Samba: $SMB_USER"
 if ! id "$SMB_USER" &>/dev/null; then
-    log_error "Usuario sistema '$SMB_USER' no existe."
-    exit 1
+    if [[ "${DRY_RUN:-false}" = true ]]; then
+        log_warning "[DRY-RUN] Usuario '$SMB_USER' no existe en este entorno (normal en simulación)."
+    else
+        log_error "Usuario sistema '$SMB_USER' no existe. Ejecuta 10-users.sh primero."
+        exit 1
+    fi
 fi
 
 (echo "$SMB_PASS"; echo "$SMB_PASS") | execute_cmd "smbpasswd -s -a $SMB_USER" "Set Password"
@@ -97,7 +101,7 @@ log_info "Reiniciando Samba..."
 execute_cmd "systemctl restart smbd nmbd"
 
 # 6. Info
-if systemctl is-active --quiet smbd; then
+if check_service_active smbd; then
     IP=$(hostname -I | awk '{print $1}')
     log_success "NAS Operativo."
     log_info "Recursos compartidos:"

@@ -47,8 +47,12 @@ ensure_package "libssl-dev"
 # 2. Verificación de Usuario
 log_info "Verificando identidad del servicio ($USER_NAME)..."
 if ! id "$USER_NAME" &>/dev/null; then
-    log_error "El usuario '$USER_NAME' no existe. Ejecuta 'scripts/00-system/10-users.sh' primero."
-    exit 1
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log_warning "[DRY-RUN] Usuario '$USER_NAME' no existe en este entorno (normal en simulación)."
+    else
+        log_error "El usuario '$USER_NAME' no existe. Ejecuta 'scripts/00-system/10-users.sh' primero."
+        exit 1
+    fi
 fi
 
 # 3. Lógica de Instalación Inteligente
@@ -130,7 +134,7 @@ EOF
 log_info "Gestionando servicio..."
 execute_cmd "systemctl daemon-reload"
 
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     log_info "Reiniciando servicio para aplicar cambios..."
     execute_cmd "systemctl restart $SERVICE"
 else
@@ -141,7 +145,7 @@ fi
 log_info "Gestionando servicio..."
 execute_cmd "systemctl daemon-reload"
 
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     log_info "Reiniciando servicio para aplicar cambios..."
     execute_cmd "systemctl restart $SERVICE"
 else
@@ -150,7 +154,7 @@ fi
 
 # 7. Verificación Final con Health Check
 # Primero miramos si el proceso existe
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     
     # AHORA miramos si el puerto responde (Health Check Real)
     # Esperamos hasta 30 segundos a que arranque .NET

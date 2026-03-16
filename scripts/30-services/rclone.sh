@@ -88,18 +88,25 @@ else
 fi
 
 # 5. Verificación Final
-if command -v rclone &> /dev/null; then
-    log_success "Rclone instalado correctamente."
-    
-    if [ -f "$RCLONE_CONF_FILE" ]; then
-        log_info "Remotos configurados:"
-        # Listamos solo los nombres para confirmar lectura correcta
-        rclone listremotes config="$RCLONE_CONF_FILE" | sed 's/^/  - /'
-    else
-        log_warning "Rclone no tiene configuración activa."
-        log_info "Ejecuta 'rclone config' para añadir Google Drive, Dropbox, etc."
-    fi
+# En modo simulación (dry-run), asumimos que la instalación habría tenido éxito.
+if [[ "${DRY_RUN:-false}" == "true" ]]; then
+    log_success "[DRY-RUN] Simulación de instalación de Rclone completada."
+    log_info "Saltando validación de remotos configurados (archivo no escrito)."
 else
-    log_error "La instalación de Rclone falló."
-    exit 1
+    # Ejecución real
+    if command -v rclone &> /dev/null; then
+        log_success "Rclone instalado correctamente."
+        
+        # CORRECCIÓN: Asegúrate de que haya un espacio después del 'if' aquí:
+        if [ -f "$RCLONE_CONF_FILE" ]; then
+            log_info "Remotos configurados:"
+            rclone listremotes --config="$RCLONE_CONF_FILE" | sed 's/^/  - /'
+        else
+            log_warning "Rclone no tiene configuración activa."
+            log_info "Ejecuta 'rclone config' para añadir Google Drive, Dropbox, etc."
+        fi
+    else
+        log_error "La instalación de Rclone falló."
+        exit 1
+    fi
 fi

@@ -25,7 +25,7 @@ if ! dpkg -l | grep -q "xserver-xorg-core"; then
 fi
 
 # 2. Idempotencia: Verificar instalación
-if systemctl is-active --quiet xrdp; then
+if check_service_active xrdp; then
     log_success "XRDP ya está instalado y ejecutándose."
     exit 0
 fi

@@ -93,7 +93,7 @@ execute_cmd "systemctl restart $SERVICE"
 execute_cmd "systemctl enable $SERVICE"
 
 # 8. Verificación Final
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     IP=$(hostname -I | awk '{print $1}')
     
     log_success "Plex Media Server instalado y activo."

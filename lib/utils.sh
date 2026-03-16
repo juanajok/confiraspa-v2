@@ -38,11 +38,21 @@ _log_print() {
     local color="$2"
     local message="$3"
     local timestamp=$(date +'%Y-%m-%d %H:%M:%S')
-    local script_name=$(basename "${BASH_SOURCE[2]:-$0}") 
+    
+    # CORRECCIÓN C3/BASH: Uso seguro de BASH_SOURCE para evitar error 'unbound variable'
+    # Usamos ${BASH_SOURCE[2]-} en lugar de [2] directo
+    local caller="${BASH_SOURCE[2]-}"
+    local script_name="system"
+    if [[ -n "$caller" ]]; then
+        script_name=$(basename "$caller")
+    fi
 
-    echo -e "${color}[${timestamp}] [${level}]${NC} ${message}" >&2
+    # Salida por pantalla (stderr)
+    echo -e "${color}[${timestamp}] [${level}]${NC} [${script_name}] ${message}" >&2
 
-    if [[ -n "$LOG_FILE" ]]; then
+    # Salida a archivo (si existe y es escribible)
+    if [[ -n "${LOG_FILE-}" ]]; then
+        # Eliminamos códigos ANSI para el log de texto plano
         echo "[${timestamp}] [${level}] [${script_name}] ${message}" | sed 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE"
     fi
 }
@@ -51,11 +61,12 @@ log_header() {
     echo -e "\n${BLUE}=====================================================${NC}" >&2
     echo -e "${BLUE}   $1 ${NC}" >&2
     echo -e "${BLUE}=====================================================${NC}" >&2
-    [[ -n "$LOG_FILE" ]] && echo -e "\n=== $1 ===" >> "$LOG_FILE"
+    # CORRECCIÓN: Usamos el fallback /dev/null si la variable está vacía
+    echo -e "\n=== $1 ===" >> "${LOG_FILE:-/dev/null}"
 }
 
-log_section()    { echo -e "\n${MAGENTA}--- $1 ---${NC}" >&2; [[ -n "$LOG_FILE" ]] && echo "--- $1 ---" >> "$LOG_FILE"; }
-log_subsection() { echo -e "\n${CYAN} -> $1${NC}" >&2; [[ -n "$LOG_FILE" ]] && echo " -> $1" >> "$LOG_FILE"; }
+log_section()    { echo -e "\n${MAGENTA}--- $1 ---${NC}" >&2; echo "--- $1 ---" >> "${LOG_FILE:-/dev/null}"; }
+log_subsection() { echo -e "\n${CYAN} -> $1${NC}" >&2; echo " -> $1" >> "${LOG_FILE:-/dev/null}"; }
 
 log_info()    { _log_print "INFO" "${BLUE}" "$1"; }
 log_success() { _log_print "OK"   "${GREEN}" "$1"; }
@@ -146,13 +157,23 @@ ensure_package() {
 
 # C2 FIX: Sustitución de 'eval' por 'bash -c' para mayor aislamiento y seguridad
 execute_cmd() {
-    local cmd="$1"
-    local msg="${2:-Ejecutando: $cmd}"
+    local cmd="${1-}"
+    local msg_arg="${2-}"
 
-    [[ -n "$2" ]] && log_info "$msg" || log_info "Exec: $cmd"
+    local msg
+    if [[ -n "$msg_arg" ]]; then
+        msg="$msg_arg"
+    else
+        msg="Ejecutando: $cmd"
+    fi
+    log_info "$msg"
 
     if [[ "${DRY_RUN:-false}" = true ]]; then
-        echo -e "${YELLOW}  [DRY-RUN]${NC} $cmd"
+        echo -e "${YELLOW}  [DRY-RUN]${NC} $cmd" >&2
+        # Drena stdin si viene de un pipe (ej: envsubst | execute_cmd "tee ...").
+        # Sin esto, el proceso upstream muere con SIGPIPE y pipefail aborta el script.
+        # En producción este path no se ejecuta, así que no hay riesgo de perder datos.
+        [[ -p /dev/stdin ]] && cat > /dev/null
         return 0
     fi
 
@@ -160,7 +181,28 @@ execute_cmd() {
         return 0
     else
         local exit_code=$?
-        log_error "Fallo en comando (Exit: $exit_code): $cmd"
+        log_error "Fallo (Exit $exit_code): $cmd"
+        return $exit_code
+    fi
+}
+
+# run_check: Para comandos de VALIDACIÓN (testparm, jq, nginx -t...)
+# En Dry-run omite la prueba (porque el archivo no existe).
+run_check() {
+    local cmd="${1-}"
+    local msg="${2:-Verificando: $cmd}"
+    log_info "$msg"
+
+    if [[ "${DRY_RUN:-false}" = true ]]; then
+        log_warning "[DRY-RUN] Validación omitida (archivo no escrito): $cmd"
+        return 0
+    fi
+
+    if bash -c "$cmd" >> "${LOG_FILE:-/dev/null}" 2>&1; then
+        return 0
+    else
+        local exit_code=$?
+        log_error "Validación fallida (Exit $exit_code): $cmd"
         return $exit_code
     fi
 }
@@ -219,16 +261,32 @@ download_secure() {
 }
 # --- 8. HEALTH CHECKS ---
 
+# Comprueba si un servicio systemd está activo.
+# En dry-run: devuelve éxito simulado.
+check_service_active() {
+    local service="$1"
+
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log_warning "[DRY-RUN] Health check omitido para servicio '$service'."
+        return 0
+    fi
+
+    systemctl is-active --quiet "$service"
+}
+
 # Espera a que un puerto esté respondiendo (TCP)
-# Uso: wait_for_service "localhost" "8080" "NombreApp"
 wait_for_service() {
     local host="$1"
     local port="$2"
     local name="${3:-Service}"
-    local timeout="${4:-30}" # 30 segundos default
+    local timeout="${4:-30}"
+
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log_warning "[DRY-RUN] Health check de puerto omitido para $name ($host:$port)."
+        return 0
+    fi
 
     log_info "Esperando a que $name escuche en $host:$port..."
-
     for ((i=0; i<timeout; i++)); do
         # Truco Bash para comprobar puerto sin netcat
         if timeout 1 bash -c "</dev/tcp/$host/$port" &>/dev/null; then
@@ -240,4 +298,30 @@ wait_for_service() {
 
     log_error "Timeout esperando a $name en $port tras $timeout segundos."
     return 1
+}
+
+# Wrapper para testparm, jq, etc.
+run_check() {
+    local cmd="${1-}"
+    local msg="${2:-Verificando: $cmd}"
+    log_info "$msg"
+
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log_warning "[DRY-RUN] Validación omitida (archivo no escrito): $cmd"
+        return 0
+    fi
+
+    if bash -c "$cmd" >> "${LOG_FILE:-/dev/null}" 2>&1; then
+        return 0
+    else
+        local exit_code=$?
+        log_error "Validación fallida (Exit $exit_code): $cmd"
+        return $exit_code
+    fi
+}
+
+
+log_debug() {
+    [[ "${DEBUG:-false}" == "true" ]] && _log_print "DEBUG" "${CYAN}" "$1"
+    return 0   # ← evita que set -e la mate si DEBUG=false
 }

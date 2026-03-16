@@ -61,7 +61,7 @@ export TRANSMISSION_USER TRANSMISSION_PASS TRANSMISSION_PEER_PORT
 # 3. Parada del Servicio (CRÍTICO)
 # Transmission sobrescribe settings.json al cerrarse. 
 # Debemos pararlo ANTES de tocar nada.
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     log_info "Deteniendo servicio Transmission para aplicar configuración..."
     execute_cmd "systemctl stop $SERVICE"
 fi
@@ -106,9 +106,9 @@ envsubst '${DIR_TORRENTS} ${DIR_INCOMPLETE} ${TRANSMISSION_USER} ${TRANSMISSION_
     < "$TEMPLATE_FILE" | execute_cmd "tee $TARGET_CONF" > /dev/null
 
 # Validación de integridad JSON (Safety Net)
-if ! jq . "$TARGET_CONF" >/dev/null 2>&1; then
+if ! run_check "jq . $TARGET_CONF" "Validando integridad del JSON de Transmission"; then
     log_error "El JSON generado es inválido. Restaurando backup..."
-    if [ -n "${BACKUP_FILE:-}" ]; then cp "$BACKUP_FILE" "$TARGET_CONF"; fi
+    if [[ -n "${BACKUP_FILE:-}" && -f "$BACKUP_FILE" ]]; then cp "$BACKUP_FILE" "$TARGET_CONF"; fi
     exit 1
 fi
 
@@ -118,7 +118,7 @@ execute_cmd "systemctl start $SERVICE"
 execute_cmd "systemctl enable $SERVICE"
 
 # 8. Verificación Final y UX
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     # Obtener IP real
     CURRENT_IP=$(hostname -I | awk '{print $1}')
     

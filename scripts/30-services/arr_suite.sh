@@ -53,8 +53,12 @@ ensure_package "mediainfo"
 # 2. Verificación de Identidad
 log_info "Verificando usuario de servicios ($USER_NAME)..."
 if ! id "$USER_NAME" &>/dev/null; then
-    log_error "El usuario '$USER_NAME' no existe. Ejecuta 'scripts/00-system/10-users.sh' primero."
-    exit 1
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log_warning "[DRY-RUN] Usuario '$USER_NAME' no existe en este entorno (normal en simulación)."
+    else
+        log_error "El usuario '$USER_NAME' no existe. Ejecuta 'scripts/00-system/10-users.sh' primero."
+        exit 1
+    fi
 fi
 
 # 3. Función Core (DRY)
@@ -148,7 +152,7 @@ EOF
     # D. Arranque
     execute_cmd "systemctl daemon-reload"
     
-    if systemctl is-active --quiet "$app_name"; then
+    if check_service_active "$app_name"; then
         log_info "Servicio $app_name activo. Reiniciando para aplicar cambios..."
         execute_cmd "systemctl restart $app_name"
     else
@@ -157,7 +161,7 @@ EOF
 
     # E. Verificación y Health Check (NUEVO)
     # Primero verificamos que systemd cree que el proceso corre
-    if systemctl is-active --quiet "$app_name"; then
+    if check_service_active "$app_name"; then
         
         # AHORA verificamos que el puerto TCP responde realmente
         # Usamos la función de utils.sh
