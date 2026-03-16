@@ -99,9 +99,9 @@ EOF
 # 4. Verificación
 # Ejecutamos un dry-run de unattended-upgrades para asegurar que la config es válida
 log_info "Verificando configuración de unattended-upgrades..."
-if execute_cmd "unattended-upgrade --dry-run --debug" "Test de configuración"; then
+# 4. Verificación
+if run_check "unattended-upgrade --dry-run --debug" "Test de configuración unattended-upgrades"; then
     log_success "Sistema actualizado y actualizaciones automáticas configuradas."
 else
-    log_warning "Hubo una advertencia al probar unattended-upgrades. Revisa los logs."
-    # No salimos con error 1 porque el sistema base sí se actualizó
+    log_warning "Advertencia: El test de unattended-upgrades falló."
 fi

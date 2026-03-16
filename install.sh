@@ -18,7 +18,7 @@ source "$REPO_ROOT/lib/utils.sh"
 source "$REPO_ROOT/lib/validators.sh"
 
 # Configuración de Logs y Locking
-LOG_FILE="$REPO_ROOT/logs/install_$(date +%Y%m%d_%H%M%S).log"
+export LOG_FILE="$REPO_ROOT/logs/install_$(date +%Y%m%d_%H%M%S).log"
 LOCK_FILE="/run/lock/confiraspa_install.lock"
 TARGET_SCRIPT=""
 

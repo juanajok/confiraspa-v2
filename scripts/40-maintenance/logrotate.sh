@@ -1,7 +1,7 @@
 #!/bin/bash
-# scripts/40--maintenance/logrotate.sh
-# Descripción: Gestión integral de logs (Sistema + JSON Parser Mejorado)
-# Autor: Juan José Hipólito (Refactorizado v4 - JSON Boolean Support)
+# scripts/40-maintenance/logrotate.sh
+# Descripción: Gestión integral de logs y rotación dinámica mediante JSON.
+# Autor: Juan José Hipólito (Refactorizado v5 - Senior DevOps Standard)
 
 set -euo pipefail
 
@@ -9,120 +9,144 @@ set -euo pipefail
 if [ -z "${REPO_ROOT:-}" ]; then
     REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
-readonly REPO_ROOT
 source "$REPO_ROOT/lib/utils.sh"
 source "$REPO_ROOT/lib/validators.sh"
-# --------------------------
 
-# --- VARIABLES ---
+# --- CONFIGURACIÓN ---
 readonly JSON_CONFIG="$REPO_ROOT/configs/static/logrotate_jobs.json"
 readonly TARGET_FILE="/etc/logrotate.d/confiraspa-dynamic"
 readonly GLOBAL_CONF="/etc/logrotate.conf"
 readonly JOURNAL_CONF="/etc/systemd/journald.conf"
+readonly MAX_JOURNAL_SIZE="100M"
 
-log_section "Optimización de Logs (Logrotate + Journal)"
+# --- FUNCIONES ---
 
-# 1. Validaciones
-validate_root
-ensure_package "logrotate"
-ensure_package "jq"
+optimize_system_logs() {
+    log_info "Optimizando configuraciones de logs del sistema..."
 
-# 2. Optimización Global del Sistema (Mantenimiento)
-log_info "Optimizando configuración global (compress)..."
-if grep -q "^#compress" "$GLOBAL_CONF"; then
-    execute_cmd "sed -i 's/^#compress/compress/' $GLOBAL_CONF"
-fi
+    # 1. Habilitar compresión global de forma idempotente
+    if grep -q "^#compress" "$GLOBAL_CONF"; then
+        execute_cmd "Habilitando compresión global en logrotate" \
+            "sed -i 's/^#compress/compress/' $GLOBAL_CONF"
+    fi
 
-# Limitar Journald a 100MB (Salvavidas de SD)
-log_info "Limitando Systemd Journal a 100MB..."
-if grep -q "^#SystemMaxUse=" "$JOURNAL_CONF" || grep -q "^SystemMaxUse=" "$JOURNAL_CONF"; then
-    execute_cmd "sed -i 's/^#SystemMaxUse=.*/SystemMaxUse=100M/' $JOURNAL_CONF"
-    execute_cmd "sed -i 's/^SystemMaxUse=.*/SystemMaxUse=100M/' $JOURNAL_CONF"
-else
-    echo "SystemMaxUse=100M" | execute_cmd "tee -a $JOURNAL_CONF"
-fi
-execute_cmd "systemctl restart systemd-journald"
+    # 2. Limitar Journald (Vital para la vida útil de la SD)
+    # Buscamos si SystemMaxUse ya está configurado al valor deseado
+    if ! grep -q "^SystemMaxUse=$MAX_JOURNAL_SIZE" "$JOURNAL_CONF"; then
+        log_info "Ajustando SystemMaxUse a $MAX_JOURNAL_SIZE en Journald..."
+        
+        # Si la línea existe pero con otro valor, la cambiamos; si no, la añadimos.
+        if grep -q "^#\?SystemMaxUse=" "$JOURNAL_CONF"; then
+            execute_cmd "Actualizando SystemMaxUse" \
+                "sed -i 's/^[#]*SystemMaxUse=.*/SystemMaxUse=$MAX_JOURNAL_SIZE/' $JOURNAL_CONF"
+        else
+            execute_cmd "Añadiendo SystemMaxUse al final del archivo" \
+                "bash -c 'echo \"SystemMaxUse=$MAX_JOURNAL_SIZE\" >> $JOURNAL_CONF'"
+        fi
+        execute_cmd "Reiniciando Journald" "systemctl restart systemd-journald"
+    else
+        log_info "Journald ya está limitado a $MAX_JOURNAL_SIZE. Saltando."
+    fi
+}
 
-# 3. Generación Dinámica desde JSON
-log_info "Procesando reglas desde $JSON_CONFIG..."
+generate_dynamic_rules() {
+    log_info "Iniciando generación de reglas desde JSON..."
 
-if [ ! -f "$JSON_CONFIG" ]; then
-    log_warning "No se encontró archivo JSON. Saltando generación dinámica."
-else
-    # Archivo temporal para validación atómica
-    TEMP_CONF=$(mktemp)
+    if [ ! -f "$JSON_CONFIG" ]; then
+        log_warning "Archivo de configuración no encontrado: $JSON_CONFIG. Saltando."
+        return 0
+    fi
+
+    if ! command -v jq &> /dev/null; then
+        if [[ "${DRY_RUN:-false}" == "true" ]]; then
+            log_warning "[DRY-RUN] 'jq' no instalado. Saltando generación en simulación."
+            return 0
+        else
+            log_error "'jq' es necesario. Abortando."
+            exit 1
+        fi
+    fi
+
+    local temp_conf
+    temp_conf=$(mktemp)
     
-    echo "# Configuración generada por Confiraspa" > "$TEMP_CONF"
-    echo "# NO EDITAR MANUALMENTE - Modificar configs/static/logrotate_jobs.json" >> "$TEMP_CONF"
-    echo "" >> "$TEMP_CONF"
+    {
+        echo "# Configuración generada automáticamente por Confiraspa"
+        echo "# Generado el: $(date)"
+        echo ""
+    } > "$temp_conf"
 
-    # Procesar JSON
-    jq -c '.jobs[]' "$JSON_CONFIG" | while read -r job; do
-        NAME=$(echo "$job" | jq -r '.name')
-        PATH=$(echo "$job" | jq -r '.path')
-        ROTATE=$(echo "$job" | jq -r '.rotate // 7')
+    while read -r job; do
+        local name path rotate freq compress_flag missingok notifempty copytruncate create
         
-        # Detección inteligente de Frecuencia (Boolean o String)
-        IS_DAILY=$(echo "$job" | jq -r '.daily // false')
-        IS_WEEKLY=$(echo "$job" | jq -r '.weekly // false')
-        FREQ_STR=$(echo "$job" | jq -r '.frequency // empty')
-
-        if [ "$IS_DAILY" == "true" ]; then FREQ="daily";
-        elif [ "$IS_WEEKLY" == "true" ]; then FREQ="weekly";
-        elif [ -n "$FREQ_STR" ]; then FREQ="$FREQ_STR";
-        else FREQ="daily"; fi # Default
-
-        # Booleanos
-        COMPRESS=$(echo "$job" | jq -r '.compress // true')
-        MISSINGOK=$(echo "$job" | jq -r '.missingok // true')
-        NOTIFEMPTY=$(echo "$job" | jq -r '.notifempty // true')
-        COPYTRUNCATE=$(echo "$job" | jq -r '.copytruncate // false')
+        name=$(echo "$job" | jq -r '.name')
+        path=$(echo "$job" | jq -r '.path')
+        rotate=$(echo "$job" | jq -r '.rotate // 7')
         
-        # Strings Opcionales
-        CREATE=$(echo "$job" | jq -r '.create // empty')
-        POSTROTATE=$(echo "$job" | jq -r '.postrotate // empty')
+        # Frecuencia
+        if [[ "$(echo "$job" | jq -r '.daily')" == "true" ]]; then freq="daily"
+        elif [[ "$(echo "$job" | jq -r '.weekly')" == "true" ]]; then freq="weekly"
+        else freq=$(echo "$job" | jq -r '.frequency // "daily"'); fi
 
-        log_info "  -> Generando regla: $NAME ($FREQ)"
+        # Booleanos a directivas
+        compress_flag=$( [[ "$(echo "$job" | jq -r '.compress // true')" == "true" ]] && echo "compress" || echo "nocompress" )
+        missingok=$( [[ "$(echo "$job" | jq -r '.missingok // true')" == "true" ]] && echo "missingok" || echo "nomissingok" )
+        notifempty=$( [[ "$(echo "$job" | jq -r '.notifempty // true')" == "true" ]] && echo "notifempty" || echo "ifempty" )
+        copytruncate=$( [[ "$(echo "$job" | jq -r '.copytruncate // false')" == "true" ]] && echo "copytruncate" || echo "" )
+        create=$(echo "$job" | jq -r '.create // empty')
 
-        # Escribir bloque en formato Logrotate
-        {
-            echo "$PATH {"
-            echo "    $FREQ"
-            echo "    rotate $ROTATE"
-            [ "$COMPRESS" == "true" ] && echo "    compress" && echo "    delaycompress"
-            [ "$MISSINGOK" == "true" ] && echo "    missingok"
-            [ "$NOTIFEMPTY" == "true" ] && echo "    notifempty"
-            [ "$COPYTRUNCATE" == "true" ] && echo "    copytruncate"
-            
-            if [ -n "$CREATE" ]; then
-                echo "    create $CREATE"
-            fi
-            
-            if [ -n "$POSTROTATE" ]; then
-                echo "    sharedscripts"
-                echo "    postrotate"
-                echo "        $POSTROTATE"
-                echo "    endscript"
-            fi
+        log_info " -> Generando regla para: $name ($freq)"
+
+{
+            echo "$path {"
+            echo "    su root adm"  # <--- FIX: Evita el error de 'insecure permissions'
+            echo "    $freq"
+            echo "    rotate $rotate"
+            echo "    $compress_flag"
+            [[ "$compress_flag" == "compress" ]] && echo "    delaycompress"
+            echo "    $missingok"
+            echo "    $notifempty"
+            [[ -n "$copytruncate" ]] && echo "    $copytruncate"
+            [[ -n "$create" ]] && echo "    create $create"
             echo "}"
             echo ""
-        } >> "$TEMP_CONF"
-    done
+        } >> "$temp_conf"
 
-    # 4. Validación y Aplicación
-    log_info "Verificando sintaxis generada..."
-    if logrotate -d "$TEMP_CONF" > /dev/null 2>&1; then
-        execute_cmd "mv $TEMP_CONF $TARGET_FILE"
-        execute_cmd "chmod 644 $TARGET_FILE"
-        execute_cmd "chown root:root $TARGET_FILE"
-        log_success "Reglas aplicadas correctamente en $TARGET_FILE"
+    done < <(jq -c '.jobs[]' "$JSON_CONFIG")
+
+    # --- MEJORA EN LA VALIDACIÓN ---
+    log_info "Validando sintaxis generada..."
+    
+    # Capturamos la salida de error para diagnosticar
+    local val_output
+    if val_output=$(logrotate -d "$temp_conf" 2>&1); then
+        log_success "Sintaxis validada."
     else
-        log_error "La configuración generada es inválida. Abortando aplicación."
-        log_error "Contenido erróneo:"
-        cat "$TEMP_CONF"
-        rm -f "$TEMP_CONF"
-        exit 1
+        # Si el error es solo que el archivo de log no existe, lo ignoramos (es normal en instalaciones nuevas)
+        if echo "$val_output" | grep -q "error: stat of"; then
+            log_warning "Aviso: Algunos archivos de log aún no existen, pero la estructura es correcta."
+        else
+            log_error "Error de sintaxis real en logrotate:"
+            echo "$val_output" >&2
+            rm -f "$temp_conf"
+            exit 1
+        fi
     fi
-fi
 
-log_success "Sistema de logs optimizado y protegido."
+    execute_cmd "Instalando reglas definitivas" "mv $temp_conf $TARGET_FILE"
+    execute_cmd "Ajustando permisos" "chmod 644 $TARGET_FILE"
+}
+
+# --- MAIN ---
+
+main() {
+    log_section "Optimización de Logs (Logrotate + Journal)"
+    validate_root
+
+    optimize_system_logs
+    generate_dynamic_rules
+
+    log_success "Mantenimiento de logs finalizado con éxito."
+}
+
+main "$@"

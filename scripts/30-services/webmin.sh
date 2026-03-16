@@ -78,7 +78,7 @@ execute_cmd "systemctl enable $SERVICE"
 execute_cmd "systemctl restart $SERVICE"
 
 # 5. Verificación
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     IP=$(hostname -I | awk '{print $1}')
     HOSTNAME=$(hostname)
     

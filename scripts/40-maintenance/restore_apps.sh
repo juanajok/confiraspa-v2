@@ -87,7 +87,7 @@ for APP_KEY in $APPS; do
     log_info "Destino: $RESTORE_DIR ($TARGET_USER:$TARGET_GROUP)"
 
     # A. Detener Servicio (si existe y corre)
-    if [ -n "$SERVICE" ] && systemctl is-active --quiet "$SERVICE"; then
+    if [ -n "$SERVICE" ] && check_service_active "$SERVICE"; then
         log_info "Deteniendo servicio $SERVICE..."
         execute_cmd "systemctl stop $SERVICE"
     fi

@@ -67,23 +67,24 @@ execute_cmd "chmod 644 $TARGET_CONF"
 # Aseguramos que el destino exista y tenga permisos correctos
 if [ ! -d "$PATH_BACKUP" ]; then
     log_warning "El directorio NAS ($PATH_BACKUP) no existe. Creándolo..."
-    mkdir -p "$PATH_BACKUP"
-    chown "$ARR_USER:$ARR_GROUP" "$PATH_BACKUP"
-    chmod 775 "$PATH_BACKUP"
+    # CORRECCIÓN: Envolvemos los comandos para que no se ejecuten en Dry-Run
+    execute_cmd "mkdir -p $PATH_BACKUP" "Creando ruta de backup"
+    execute_cmd "chown $ARR_USER:$ARR_GROUP $PATH_BACKUP" "Asignando propietario"
+    execute_cmd "chmod 775 $PATH_BACKUP" "Ajustando permisos"
 fi
 
 # 5. Gestión del Servicio
 log_info "Reiniciando servicio..."
 execute_cmd "systemctl daemon-reload"
 
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     execute_cmd "systemctl restart $SERVICE"
 else
     execute_cmd "systemctl enable --now $SERVICE"
 fi
 
 # 6. Verificación Final
-if systemctl is-active --quiet "$SERVICE"; then
+if check_service_active "$SERVICE"; then
     IP=$(hostname -I | awk '{print $1}')
     log_success "Servidor Rsync operativo."
     log_info "---------------------------------------------------"
