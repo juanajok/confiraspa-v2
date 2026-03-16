@@ -1,0 +1,53 @@
+
+=== Iniciando Confiraspa ===
+[2026-03-16 13:24:01] [INFO] [install.sh] Repositorio:  /mnt/Datos/Documentos/Repos/confiraspa V2
+[2026-03-16 13:24:01] [INFO] [install.sh] IP detectada: 192.168.1.147
+[2026-03-16 13:24:01] [INFO] [install.sh] Modo dry-run: true
+[2026-03-16 13:24:01] [INFO] [install.sh] Log de sesión: /mnt/Datos/Documentos/Repos/confiraspa V2/logs/install_20260316_132401.log
+--- Etapa: 00-update ---
+[2026-03-16 13:24:01] [INFO] [install.sh] Script: scripts/00-system/00-update.sh
+--- Actualización del Sistema y Parches de Seguridad ---
+[2026-03-16 13:24:01] [INFO] [00-update.sh] Actualizando repositorios y paquetes del sistema...
+[2026-03-16 13:24:01] [INFO] [utils.sh] Actualizando lista de paquetes
+[2026-03-16 13:24:01] [INFO] [utils.sh] Aplicando actualizaciones pendientes
+[2026-03-16 13:24:01] [INFO] [utils.sh] Aplicando actualizaciones de distribución
+[2026-03-16 13:24:01] [INFO] [utils.sh] Eliminando dependencias huérfanas
+[2026-03-16 13:24:01] [INFO] [utils.sh] Limpiando caché de apt
+[2026-03-16 13:24:01] [INFO] [00-update.sh] Configurando actualizaciones automáticas de seguridad...
+[2026-03-16 13:24:02] [INFO] [utils.sh] Actualizando índices de APT (Lazy Update)...
+[2026-03-16 13:24:02] [INFO] [utils.sh] Ejecutando: apt-get update -qq
+[2026-03-16 13:24:02] [INFO] [utils.sh] Instalando dependencia: apt-listchanges...
+[2026-03-16 13:24:02] [INFO] [utils.sh] Instalación de apt-listchanges
+[2026-03-16 13:24:02] [INFO] [00-update.sh] Generando configuración en: /etc/apt/apt.conf.d/52confiraspa-unattended
+[2026-03-16 13:24:02] [INFO] [utils.sh] Ejecutando: tee /etc/apt/apt.conf.d/52confiraspa-unattended
+[2026-03-16 13:24:02] [INFO] [00-update.sh] Configurando frecuencia diaria en: /etc/apt/apt.conf.d/20auto-upgrades
+[2026-03-16 13:24:02] [INFO] [utils.sh] Ejecutando: tee /etc/apt/apt.conf.d/20auto-upgrades
+[2026-03-16 13:24:02] [INFO] [00-update.sh] Verificando configuración de unattended-upgrades...
+[2026-03-16 13:24:02] [INFO] [utils.sh] Test de configuración unattended-upgrades
+[2026-03-16 13:24:02] [WARN] [utils.sh] [DRY-RUN] Validación omitida (archivo no escrito): unattended-upgrade --dry-run --debug
+[2026-03-16 13:24:02] [OK] [00-update.sh] Sistema actualizado y actualizaciones automáticas configuradas.
+[2026-03-16 13:24:02] [OK] [install.sh] Etapa '00-update' completada.
+--- Etapa: 10-users ---
+[2026-03-16 13:24:02] [INFO] [install.sh] Script: scripts/00-system/10-users.sh
+--- Configuración de Usuarios y Grupos ---
+[2026-03-16 13:24:02] [INFO] [10-users.sh] Creando grupo compartido: media
+[2026-03-16 13:24:02] [INFO] [utils.sh] Ejecutando: groupadd media
+[2026-03-16 13:24:02] [INFO] [10-users.sh] Creando usuario del sistema: pi
+[2026-03-16 13:24:02] [INFO] [utils.sh] Ejecutando: useradd -m -s /bin/bash -G sudo,video,users pi
+[2026-03-16 13:24:02] [INFO] [10-users.sh] Actualizando contraseña para pi...
+[2026-03-16 13:24:02] [INFO] [utils.sh] Aplicando contraseña
+[2026-03-16 13:24:02] [INFO] [10-users.sh] Añadiendo 'pi' a grupos necesarios...
+[2026-03-16 13:24:02] [INFO] [utils.sh] Añadiendo a grupo: sudo
+[2026-03-16 13:24:02] [INFO] [utils.sh] Añadiendo a grupo: video
+[2026-03-16 13:24:02] [INFO] [utils.sh] Añadiendo a grupo: users
+[2026-03-16 13:24:02] [WARN] [10-users.sh] El grupo 'media' no existe en el sistema. Omitiendo.
+[2026-03-16 13:24:02] [OK] [10-users.sh] Configuración de usuarios finalizada.
+[2026-03-16 13:24:02] [INFO] [10-users.sh] NOTA: Si has cambiado tus propios grupos, necesitarás cerrar sesión y volver a entrar.
+[2026-03-16 13:24:02] [OK] [install.sh] Etapa '10-users' completada.
+--- Etapa: 20-storage ---
+[2026-03-16 13:24:02] [INFO] [install.sh] Script: scripts/00-system/20-storage.sh
+--- Configuración de almacenamiento y permisos ---
+[2026-03-16 13:24:02] [INFO] [utils.sh] Asegurando directorio: /media/WDElements (root:root 0755)
+[2026-03-16 13:24:02] [ERROR] [install.sh] Fallo crítico en etapa '20-storage' (exit code: 1).
+[2026-03-16 13:24:02] [ERROR] [install.sh] Script: scripts/00-system/20-storage.sh
+[2026-03-16 13:24:02] [ERROR] [install.sh] Consulta el log: /mnt/Datos/Documentos/Repos/confiraspa V2/logs/install_20260316_132401.log
