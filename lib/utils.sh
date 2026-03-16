@@ -320,8 +320,37 @@ run_check() {
     fi
 }
 
+# ===========================================================================
 
 log_debug() {
     [[ "${DEBUG:-false}" == "true" ]] && _log_print "DEBUG" "${CYAN}" "$1"
     return 0   # ← evita que set -e la mate si DEBUG=false
+}
+
+
+
+# =============================================================================
+# ASSERT_SYSTEM_STATE
+#
+# Evalúa una condición de sistema real.
+#   - En modo producción: falla si la condición no se cumple.
+#   - En modo dry-run: emite un warning y permite continuar.
+#
+# Uso: assert_system_state "comando" "mensaje de error"
+# =============================================================================
+assert_system_state() {
+    local condition="$1"
+    local error_msg="$2"
+
+    if eval "${condition}" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log_warning "[DRY-RUN] Simulación de estado: ${error_msg}"
+        return 0
+    fi
+
+    log_error "${error_msg}"
+    exit 1
 }
