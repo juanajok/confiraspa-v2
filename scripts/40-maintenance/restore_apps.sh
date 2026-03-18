@@ -1,166 +1,405 @@
-#!/bin/bash
-# scripts/99-finalization/restore_apps.sh
-# Descripción: Restauración selectiva de configuraciones con tolerancia a fallos
-# Autor: Juan José Hipólito (Refactorizado v4 - Post Peer Review)
+#!/usr/bin/env bash
+# scripts/40-maintenance/restore_apps.sh
+# Restauración selectiva de configuraciones desde backups, con tolerancia a fallos.
+#
+# Lee restore.json para saber qué restaurar, de dónde y con qué permisos.
+# Soporta dos modos: ZIP (backups de los *Arr) y ficheros sueltos (Plex, rclone).
+#
+# NOTA SOBRE PERMISOS: Los ficheros .db (SQLite) no deben tener el bit de
+# ejecución. restore.json original tenía "775" para .db — este script lo
+# sanitiza automáticamente a 664 para ficheros no ejecutables.
 
 set -euo pipefail
+IFS=$'\n\t'
 
-# --- CABECERA UNIVERSAL ---
-if [ -z "${REPO_ROOT:-}" ]; then
-    REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-fi
-readonly REPO_ROOT
-source "$REPO_ROOT/lib/utils.sh"
-source "$REPO_ROOT/lib/validators.sh"
-# --------------------------
+# ===========================================================================
+# CABECERA UNIVERSAL
+# ===========================================================================
+readonly SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- VARIABLES ---
-readonly CONFIG_FILE="$REPO_ROOT/configs/static/restore.json"
-# Usuario/Grupo por defecto para los *Arr
-readonly ARR_USER="${ARR_USER:-media}"
-readonly ARR_GROUP="${ARR_GROUP:-media}"
-
-log_section "Restauración de Configuraciones (Apps & Sistema)"
-
-# 1. Validaciones
-validate_root
-ensure_package "jq"
-ensure_package "unzip"
-
-if [ ! -f "$CONFIG_FILE" ]; then
-    log_error "Falta el archivo: $CONFIG_FILE"
-    exit 1
+if [[ -z "${REPO_ROOT:-}" ]]; then
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+    export REPO_ROOT
 fi
 
-# 2. Bucle Principal (Iterar por claves del JSON)
-APPS=$(jq -r 'keys[]' "$CONFIG_FILE")
+source "${REPO_ROOT}/lib/utils.sh"
+source "${REPO_ROOT}/lib/validators.sh"
 
-for APP_KEY in $APPS; do
-    log_subsection "Procesando: $APP_KEY"
+# ===========================================================================
+# CONSTANTES
+# ===========================================================================
+readonly CONFIG_FILE="${REPO_ROOT}/configs/static/restore.json"
+readonly DEFAULT_USER="${ARR_USER:-media}"
+readonly DEFAULT_GROUP="${ARR_GROUP:-media}"
 
-    # Helper para extraer datos
-    _jq() { jq -r ".\"$APP_KEY\".$1 // empty" "$CONFIG_FILE"; }
+# ===========================================================================
+# FUNCIONES LOCALES
+# ===========================================================================
 
-    BACKUP_DIR=$(_jq 'backup_dir')
-    BACKUP_EXT=$(_jq 'backup_ext')
-    RESTORE_DIR=$(_jq 'restore_dir')
-    
-    # Intentamos leer usuario/grupo del JSON. Si no existen, quedan vacíos.
-    JSON_USER=$(_jq 'user')
-    JSON_GROUP=$(_jq 'group')
-    
-    # --- DETERMINAR IDENTIDAD Y SERVICIO ---
-    APP_LOWER="${APP_KEY,,}"
-    SERVICE=""
-    
-    case "$APP_LOWER" in
+# --- Error handler ---
+on_error() {
+    local exit_code="${1:-1}"
+    local line_no="${BASH_LINENO[0]:-unknown}"
+    local source_file="${BASH_SOURCE[1]:-${SCRIPT_NAME}}"
+
+    log_error "Error en '$(basename "${source_file}")' (línea ${line_no}, exit code ${exit_code})."
+}
+
+# --- Parseo de argumentos ---
+parse_args() {
+    DRY_RUN="${DRY_RUN:-false}"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dry-run) DRY_RUN="true" ;;
+            *) log_warning "Argumento desconocido: $1" ;;
+        esac
+        shift
+    done
+    export DRY_RUN
+}
+
+# --- Validar comandos del SO base ---
+require_system_commands() {
+    local cmd
+    for cmd in "$@"; do
+        if ! command -v "${cmd}" &>/dev/null; then
+            log_error "Comando requerido del sistema no disponible: ${cmd}"
+            exit 1
+        fi
+    done
+}
+
+# ===========================================================================
+# FUNCIONES DE NEGOCIO
+# ===========================================================================
+
+# --- Determinar usuario, grupo y servicio para una app ---
+# Escribe en las variables: APP_SERVICE, APP_USER, APP_GROUP
+resolve_app_identity() {
+    local app_key="$1"
+    local json_user="$2"
+    local json_group="$3"
+    local app_lower="${app_key,,}"
+
+    APP_SERVICE=""
+    APP_USER=""
+    APP_GROUP=""
+
+    case "${app_lower}" in
         plex)
-            SERVICE="plexmediaserver"
-            TARGET_USER="${JSON_USER:-plex}"
-            TARGET_GROUP="${JSON_GROUP:-$ARR_GROUP}"
+            APP_SERVICE="plexmediaserver"
+            APP_USER="${json_user:-plex}"
+            APP_GROUP="${json_group:-${DEFAULT_GROUP}}"
             ;;
         rclone)
-            SERVICE="" # Rclone no es un servicio, es config de usuario
-            if [ -n "$JSON_USER" ]; then
-                TARGET_USER="$JSON_USER"
-                TARGET_GROUP="$JSON_GROUP"
-            else
-                # Heurística: Si restore_dir es /home/pi -> usuario pi. Si es /root -> root.
-                if [[ "$RESTORE_DIR" == *"/home/"* ]]; then
-                    # Extraer propietario del directorio padre (ej: /home/pi)
-                    TARGET_USER=$(stat -c '%U' "$(dirname "$RESTORE_DIR")" 2>/dev/null || echo "${SUDO_USER:-pi}")
-                    TARGET_GROUP=$(stat -c '%G' "$(dirname "$RESTORE_DIR")" 2>/dev/null || echo "${SUDO_USER:-pi}")
-                else
-                    TARGET_USER="root"
-                    TARGET_GROUP="root"
-                fi
-            fi
+            # Rclone no es un servicio — es configuración de usuario.
+            APP_SERVICE=""
+            APP_USER="${json_user:-${SYS_USER:-pi}}"
+            APP_GROUP="${json_group:-${SYS_USER:-pi}}"
             ;;
         *)
             # Por defecto: Suite *Arr
-            SERVICE="$APP_LOWER"
-            TARGET_USER="${JSON_USER:-$ARR_USER}"
-            TARGET_GROUP="${JSON_GROUP:-$ARR_GROUP}"
+            APP_SERVICE="${app_lower}"
+            APP_USER="${json_user:-${DEFAULT_USER}}"
+            APP_GROUP="${json_group:-${DEFAULT_GROUP}}"
             ;;
     esac
+}
 
-    log_info "Destino: $RESTORE_DIR ($TARGET_USER:$TARGET_GROUP)"
+# --- Encontrar el backup más reciente en un directorio ---
+# Usa find + sort en lugar de ls -t (robusto con nombres especiales).
+find_latest_backup() {
+    local backup_dir="$1"
+    local backup_ext="$2"
 
-    # A. Detener Servicio (si existe y corre)
-    if [ -n "$SERVICE" ] && check_service_active "$SERVICE"; then
-        log_info "Deteniendo servicio $SERVICE..."
-        execute_cmd "systemctl stop $SERVICE"
+    find "${backup_dir}" -maxdepth 1 -type f -name "*${backup_ext}" -printf '%T@\t%p\n' 2>/dev/null \
+        | sort -rn \
+        | head -1 \
+        | cut -f2
+}
+
+# --- Sanitizar permisos: quitar bit de ejecución a ficheros no-script ---
+sanitize_permission() {
+    local filename="$1"
+    local perm="$2"
+
+    # Scripts: mantener permisos tal cual
+    case "${filename}" in
+        *.sh|*.py|*.pl|*.rb) echo "${perm}"; return 0 ;;
+    esac
+
+    # Para todo lo demás: quitar bits de ejecución (AND con 666)
+    local sanitized
+    sanitized=$(printf '%o' $(( 8#${perm} & 8#666 )))
+
+    if [[ "${sanitized}" != "${perm}" ]]; then
+        log_warning "  Permiso sanitizado: ${filename} ${perm} → ${sanitized} (bit ejecutable inapropiado)"
     fi
 
-    # B. Crear directorio destino si falta
-    if [ ! -d "$RESTORE_DIR" ]; then
-        log_info "Creando directorio destino..."
-        mkdir -p "$RESTORE_DIR"
+    echo "${sanitized}"
+}
+
+# --- Restaurar ficheros desde un backup ZIP (*Arr) ---
+restore_from_zip() {
+    local app_key="$1"
+    local backup_dir="$2"
+    local backup_ext="$3"
+    local restore_dir="$4"
+
+    local latest_backup
+    latest_backup=$(find_latest_backup "${backup_dir}" "${backup_ext}")
+
+    if [[ -z "${latest_backup}" ]]; then
+        log_warning "No hay backups ${backup_ext} en ${backup_dir}. Saltando."
+        return 0
     fi
 
-    # C. Lógica de Restauración
-    if [ "$BACKUP_EXT" == ".zip" ]; then
-        # --- MODO ZIP (*Arr) ---
-        
-        LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/*"$BACKUP_EXT" 2>/dev/null | head -n 1)
-        
-        if [ -z "$LATEST_BACKUP" ]; then
-            log_warning "No hay backups .zip en $BACKUP_DIR. Saltando."
+    log_info "Usando backup: $(basename "${latest_backup}")"
+
+    local files_json
+    files_json=$(jq -r ".\"${app_key}\".files_to_restore[]" "${CONFIG_FILE}")
+
+    local file
+    while IFS= read -r file; do
+        [[ -z "${file}" ]] && continue
+
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            log_info "  [DRY-RUN] Restauraría: ${file}"
             continue
         fi
-        
-        log_info "Usando backup: $(basename "$LATEST_BACKUP")"
-        FILES_LIST=$(jq -r ".\"$APP_KEY\".files_to_restore[]" "$CONFIG_FILE")
-        
-        for FILE in $FILES_LIST; do
-            # Extracción tolerante a fallos
-            # unzip -j: junk paths (aplana estructura)
-            # -o: overwrite (sobrescribe sin preguntar)
-            if unzip -j -o "$LATEST_BACKUP" "$FILE" -d "$RESTORE_DIR" > /dev/null 2>&1; then
-                log_info "  -> Restaurado: $FILE"
-            else
-                log_warning "  -> No se encontró '$FILE' dentro del ZIP. Omitido."
-            fi
-        done
 
-    else
-        # --- MODO ARCHIVO SUELTO (Plex/Rclone) ---
-        
-        FILES_LIST=$(jq -r ".\"$APP_KEY\".files_to_restore[]" "$CONFIG_FILE")
-        
-        for FILE in $FILES_LIST; do
-            SRC_FILE="$BACKUP_DIR/$FILE"
-            DEST_FILE="$RESTORE_DIR/$FILE"
-            
-            if [ -f "$SRC_FILE" ]; then
-                cp "$SRC_FILE" "$DEST_FILE"
-                log_info "  -> Copiado: $FILE"
-            else
-                log_warning "  -> Archivo origen no encontrado: $SRC_FILE"
-            fi
-        done
-    fi
-
-    # D. Aplicar Permisos Específicos (Del JSON)
-    log_info "Ajustando permisos de archivos..."
-    
-    jq -r ".\"$APP_KEY\".file_permissions | to_entries[] | \"\(.key) \(.value)\"" "$CONFIG_FILE" | while read -r FILE PERM; do
-        FULL_PATH="$RESTORE_DIR/$FILE"
-        if [ -f "$FULL_PATH" ]; then
-            chmod "$PERM" "$FULL_PATH"
-            chown "$TARGET_USER:$TARGET_GROUP" "$FULL_PATH"
+        # Limpiar archivos residuales de SQLite antes de restaurar.
+        # Cuando SQLite corre, crea .db-wal y .db-shm junto a la BD.
+        # Si restauramos un .db nuevo sin eliminarlos, SQLite intenta
+        # hacer replay del WAL viejo sobre la BD nueva y corrompe o falla.
+        if [[ "${file}" == *.db ]]; then
+            rm -f "${restore_dir}/${file}" "${restore_dir}/${file}-wal" "${restore_dir}/${file}-shm" 2>/dev/null || true
+            log_info "  Limpiados residuos SQLite: ${file}, ${file}-wal, ${file}-shm"
         fi
-    done
-    
-    # Asegurar propiedad del directorio contenedor
-    chown "$TARGET_USER:$TARGET_GROUP" "$RESTORE_DIR"
 
-    # E. Arrancar Servicio
-    if [ -n "$SERVICE" ]; then
-        log_info "Iniciando $SERVICE..."
-        execute_cmd "systemctl start $SERVICE"
+        if unzip -j -o "${latest_backup}" "${file}" -d "${restore_dir}" > /dev/null 2>&1; then
+            log_info "  -> Restaurado: ${file}"
+        else
+            log_warning "  -> No se encontró '${file}' dentro del ZIP. Omitido."
+        fi
+    done <<< "${files_json}"
+}
+
+# --- Restaurar ficheros sueltos (Plex, rclone) ---
+restore_loose_files() {
+    local app_key="$1"
+    local backup_dir="$2"
+    local restore_dir="$3"
+
+    local files_json
+    files_json=$(jq -r ".\"${app_key}\".files_to_restore[]" "${CONFIG_FILE}")
+
+    local file
+    while IFS= read -r file; do
+        [[ -z "${file}" ]] && continue
+
+        local src="${backup_dir}/${file}"
+        local dest="${restore_dir}/${file}"
+
+        if [[ ! -f "${src}" ]]; then
+            log_warning "  -> Archivo origen no encontrado: ${src}"
+            continue
+        fi
+
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            log_info "  [DRY-RUN] Copiaría: ${file}"
+            continue
+        fi
+
+        execute_cmd "cp -a '${src}' '${dest}'" \
+            "Copiando: ${file}"
+    done <<< "${files_json}"
+}
+
+# --- Aplicar permisos específicos por fichero (desde el JSON) ---
+apply_file_permissions() {
+    local app_key="$1"
+    local restore_dir="$2"
+    local target_user="$3"
+    local target_group="$4"
+
+    log_info "Ajustando permisos de archivos..."
+
+    local file perm full_path sanitized_perm
+    while IFS=$'\t' read -r file perm; do
+        [[ -z "${file}" ]] && continue
+
+        full_path="${restore_dir}/${file}"
+        sanitized_perm=$(sanitize_permission "${file}" "${perm}")
+
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            log_info "  [DRY-RUN] chmod ${sanitized_perm} / chown ${target_user}:${target_group} → ${file}"
+            continue
+        fi
+
+        if [[ -f "${full_path}" ]]; then
+            execute_cmd "chmod '${sanitized_perm}' '${full_path}'" \
+                "Permisos ${sanitized_perm} → ${file}"
+            execute_cmd "chown '${target_user}:${target_group}' '${full_path}'" \
+                "Propietario ${target_user}:${target_group} → ${file}"
+        else
+            log_warning "  Fichero no encontrado para permisos: ${full_path}"
+        fi
+    done < <(jq -r ".\"${app_key}\".file_permissions | to_entries[] | \"\(.key)\t\(.value)\"" "${CONFIG_FILE}" 2>/dev/null)
+
+    # Asegurar propiedad de todo el directorio y su contenido.
+    # Los *Arr crean subcarpetas (MediaCover, logs, cache) que también
+    # necesitan el propietario correcto para arrancar sin errores.
+    if [[ "${DRY_RUN}" != "true" ]]; then
+        execute_cmd "chown -R '${target_user}:${target_group}' '${restore_dir}'" \
+            "Propietario recursivo: ${restore_dir}"
+    fi
+}
+
+# --- Corregir BindAddress en config.xml tras restaurar desde backup ---
+# Los backups de los *Arr pueden venir de otro entorno de red donde
+# BindAddress estaba en 127.0.0.1 o localhost. En un NAS doméstico
+# necesitamos que escuchen en todas las interfaces (*) para que otros
+# dispositivos de la red puedan acceder a la web UI.
+fix_bind_address() {
+    local restore_dir="$1"
+    local config_xml="${restore_dir}/config.xml"
+
+    [[ -f "${config_xml}" ]] || return 0
+
+    local current_bind
+    current_bind=$(grep -oP '(?<=<BindAddress>)[^<]+' "${config_xml}" 2>/dev/null) || return 0
+
+    # Solo corregir si está restringido a loopback
+    case "${current_bind}" in
+        127.0.0.1|localhost)
+            if [[ "${DRY_RUN}" == "true" ]]; then
+                log_info "  [DRY-RUN] Cambiaría BindAddress de '${current_bind}' a '*' en config.xml"
+                return 0
+            fi
+
+            sed -i "s|<BindAddress>${current_bind}</BindAddress>|<BindAddress>*</BindAddress>|g" "${config_xml}"
+            log_warning "  BindAddress corregido: ${current_bind} → * (acceso desde red local)"
+            ;;
+        \*|0.0.0.0)
+            log_info "  BindAddress ya permite acceso de red (${current_bind})."
+            ;;
+        *)
+            log_info "  BindAddress personalizado: ${current_bind}. No se modifica."
+            ;;
+    esac
+}
+
+# --- Procesar una app completa ---
+process_app() {
+    local app_key="$1"
+
+    log_subsection "Procesando: ${app_key}"
+
+    # FIX v5.1: Usar mapfile (una línea por campo) en lugar de @tsv + read.
+    # Cuando backup_ext es "" (Plex, rclone), @tsv genera dos tabuladores
+    # consecutivos que read colapsa en uno, desplazando todas las variables.
+    # mapfile lee cada línea como un elemento del array — inmune a campos vacíos.
+    local -a app_data
+    mapfile -t app_data < <(jq -r ".\"${app_key}\" | .backup_dir, .backup_ext, .restore_dir, (.user // \"\"), (.group // \"\")" "${CONFIG_FILE}")
+
+    local backup_dir="${app_data[0]:-}"
+    local backup_ext="${app_data[1]:-}"
+    local restore_dir="${app_data[2]:-}"
+    local json_user="${app_data[3]:-}"
+    local json_group="${app_data[4]:-}"
+
+    # Validación defensiva: restore_dir nunca debe estar vacío
+    if [[ -z "${restore_dir}" ]]; then
+        log_error "restore_dir está vacío en el JSON para '${app_key}'. Verifica restore.json."
+        return 1
     fi
 
-done
+    # Determinar identidad y servicio
+    resolve_app_identity "${app_key}" "${json_user}" "${json_group}"
+    log_info "Destino: ${restore_dir} (${APP_USER}:${APP_GROUP})"
 
-log_success "Restauración completada."
+    # A. Validar directorio de backup
+    if [[ ! -d "${backup_dir}" ]]; then
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            log_warning "[DRY-RUN] Directorio de backup no existe: ${backup_dir} (normal en simulación)."
+            return 0
+        else
+            log_warning "Directorio de backup no existe: ${backup_dir}. Saltando ${app_key}."
+            return 0
+        fi
+    fi
+
+    # B. Detener servicio si existe y está corriendo
+    if [[ -n "${APP_SERVICE}" ]]; then
+        if check_service_active "${APP_SERVICE}"; then
+            execute_cmd "systemctl stop '${APP_SERVICE}'" \
+                "Deteniendo ${APP_SERVICE} para restaurar"
+        fi
+    fi
+
+    # C. Crear directorio destino si no existe
+    if [[ ! -d "${restore_dir}" ]]; then
+        execute_cmd "install -d -o '${APP_USER}' -g '${APP_GROUP}' -m 755 '${restore_dir}'" \
+            "Creando directorio destino: ${restore_dir}"
+    fi
+
+    # D. Restaurar ficheros según el tipo de backup
+    if [[ "${backup_ext}" == ".zip" ]]; then
+        restore_from_zip "${app_key}" "${backup_dir}" "${backup_ext}" "${restore_dir}"
+    else
+        restore_loose_files "${app_key}" "${backup_dir}" "${restore_dir}"
+    fi
+
+    # E. Aplicar permisos específicos
+    apply_file_permissions "${app_key}" "${restore_dir}" "${APP_USER}" "${APP_GROUP}"
+
+    # F. Corregir BindAddress si el backup venía con loopback
+    fix_bind_address "${restore_dir}"
+
+    # G. Reiniciar servicio
+    if [[ -n "${APP_SERVICE}" ]]; then
+        execute_cmd "systemctl start '${APP_SERVICE}'" \
+            "Iniciando ${APP_SERVICE}"
+    fi
+}
+
+# ===========================================================================
+# MAIN
+# ===========================================================================
+main() {
+    trap 'on_error "$?"' ERR
+
+    # --- Inicialización ---
+    parse_args "$@"
+    log_section "Restauración de Configuraciones (Apps & Sistema)"
+
+    # --- 1. Validaciones ---
+    validate_root
+    require_system_commands jq unzip cp chmod chown systemctl
+
+    ensure_package "jq"
+    ensure_package "unzip"
+
+    if [[ ! -f "${CONFIG_FILE}" ]]; then
+        log_error "Falta el archivo de configuración: ${CONFIG_FILE}"
+        exit 1
+    fi
+
+    # --- 2. Iterar por cada app definida en el JSON ---
+    local APP_SERVICE="" APP_USER="" APP_GROUP=""
+
+    local app_keys
+    app_keys=$(jq -r 'keys[]' "${CONFIG_FILE}")
+
+    local app_key
+    while IFS= read -r app_key; do
+        [[ -z "${app_key}" ]] && continue
+        process_app "${app_key}"
+    done <<< "${app_keys}"
+
+    log_success "Restauración completada."
+}
+
+main "$@"
