@@ -1,0 +1,89 @@
+
+=== Iniciando Confiraspa ===
+[2026-03-18 01:07:16] [INFO] [install.sh] Repositorio:  /opt/confiraspa
+[2026-03-18 01:07:16] [INFO] [install.sh] IP detectada: 192.168.1.176
+[2026-03-18 01:07:16] [INFO] [install.sh] Modo dry-run: false
+[2026-03-18 01:07:16] [INFO] [install.sh] Log de sesión: /opt/confiraspa/logs/install_20260318_010716.log
+[2026-03-18 01:07:16] [INFO] [install.sh] Filtro --only activo: 'samba'
+--- Etapa: samba ---
+[2026-03-18 01:07:16] [INFO] [install.sh] Script: scripts/30-services/samba.sh
+--- Configuración de Servidor NAS (Samba) ---
+[2026-03-18 01:07:16] [INFO] [utils.sh] Backup de smb.conf existente
+[2026-03-18 01:07:16] [INFO] [utils.sh] Validando sintaxis de smb.conf
+Load smb config files from /tmp/tmp.OesNvL5FgH/smb.conf.candidate
+Loaded services file OK.
+Weak crypto is allowed by GnuTLS (e.g. NTLM as a compatibility fallback)
+
+Server role: ROLE_STANDALONE
+
+# Global parameters
+[global]
+	dns proxy = No
+	log file = /var/log/samba/log.%m
+	logging = file
+	map to guest = Bad User
+	max log size = 1000
+	netbios name = %H
+	security = USER
+	server min protocol = SMB2
+	server string = Confiraspa NAS @ %h
+	socket options = TCP_NODELAY IPTOS_LOWDELAY
+	idmap config * : backend = tdb
+	aio read size = 16384
+	aio write size = 16384
+	use sendfile = Yes
+
+
+[WDElements]
+	comment = Biblioteca Multimedia Principal
+	create mask = 0664
+	directory mask = 02775
+	force group = media
+	force user = pi
+	guest ok = Yes
+	path = /media/WDElements
+	read only = No
+
+
+[Descargas]
+	comment = Carpeta de Descargas Completas
+	create mask = 0664
+	directory mask = 02775
+	force group = media
+	force user = pi
+	guest ok = Yes
+	path = /media/DiscoDuro/completo
+	read only = No
+
+
+[Backup]
+	comment = Copias de Seguridad del Sistema
+	create mask = 0664
+	directory mask = 02775
+	force group = media
+	force user = pi
+	guest ok = Yes
+	path = /media/Backup
+	read only = No
+[2026-03-18 01:07:16] [INFO] [utils.sh] Instalando nueva configuración smb.conf
+[2026-03-18 01:07:16] [INFO] [samba.sh] Configuración actualizada — reiniciando Samba...
+[2026-03-18 01:07:16] [INFO] [utils.sh] Recargando systemd
+[2026-03-18 01:07:16] [INFO] [utils.sh] Habilitando smbd
+Synchronizing state of smbd.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install enable smbd
+[2026-03-18 01:07:18] [INFO] [utils.sh] Reiniciando smbd
+[2026-03-18 01:07:18] [OK] [samba.sh] NAS Público operativo (acceso sin contraseña).
+[2026-03-18 01:07:18] [INFO] [samba.sh]   \\192.168.1.176\WDElements  — Biblioteca multimedia
+[2026-03-18 01:07:18] [INFO] [samba.sh]   \\192.168.1.176\Descargas   — Descargas completas
+[2026-03-18 01:07:18] [INFO] [samba.sh]   \\192.168.1.176\Backup      — Copias de seguridad
+[2026-03-18 01:07:18] [INFO] [samba.sh] 
+[2026-03-18 01:07:18] [INFO] [samba.sh]   Desde Linux:  smb://192.168.1.176/WDElements
+[2026-03-18 01:07:18] [INFO] [samba.sh]   Nota: Conectar como 'Anónimo' o 'Invitado'.
+[2026-03-18 01:07:18] [OK] [install.sh] Etapa 'samba' completada.
+
+=== Instalación finalizada ===
+[2026-03-18 01:07:18] [INFO] [install.sh] Resumen:
+[2026-03-18 01:07:18] [INFO] [install.sh]   - Etapas ejecutadas: 1
+[2026-03-18 01:07:18] [INFO] [install.sh]   - IP del sistema:    192.168.1.176
+[2026-03-18 01:07:18] [INFO] [install.sh]   - Log de sesión:     /opt/confiraspa/logs/install_20260318_010716.log
+[2026-03-18 01:07:18] [WARN] [install.sh] Recomendación: reinicia la Raspberry Pi para aplicar todos los cambios.
