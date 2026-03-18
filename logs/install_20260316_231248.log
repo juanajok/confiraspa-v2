@@ -1,0 +1,16 @@
+
+=== Iniciando Confiraspa ===
+[2026-03-16 23:12:48] [INFO] [install.sh] Repositorio:  /opt/confiraspa
+[2026-03-16 23:12:48] [INFO] [install.sh] IP detectada: 192.168.1.176
+[2026-03-16 23:12:48] [INFO] [install.sh] Modo dry-run: false
+[2026-03-16 23:12:48] [INFO] [install.sh] Log de sesión: /opt/confiraspa/logs/install_20260316_231248.log
+--- Etapa: 00-update ---
+[2026-03-16 23:12:48] [INFO] [install.sh] Script: scripts/00-system/00-update.sh
+--- Actualización del Sistema y Parches de Seguridad ---
+[2026-03-16 23:12:48] [INFO] [00-update.sh] Actualizando repositorios y paquetes del sistema...
+[2026-03-16 23:12:48] [INFO] [utils.sh] apt-get update -qq
+/opt/confiraspa/lib/utils.sh: line 172: Actualizando lista de paquetes: command not found
+[2026-03-16 23:12:48] [ERROR] [utils.sh] Fallo (Exit 127) al ejecutar: Actualizando lista de paquetes
+[2026-03-16 23:12:48] [ERROR] [install.sh] Fallo crítico en etapa '00-update' (exit code: 127).
+[2026-03-16 23:12:48] [ERROR] [install.sh] Script: scripts/00-system/00-update.sh
+[2026-03-16 23:12:48] [ERROR] [install.sh] Consulta el log: /opt/confiraspa/logs/install_20260316_231248.log

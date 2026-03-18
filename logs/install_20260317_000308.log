@@ -1,0 +1,881 @@
+
+=== Iniciando Confiraspa ===
+[2026-03-17 00:03:08] [INFO] [install.sh] Repositorio:  /opt/confiraspa
+[2026-03-17 00:03:08] [INFO] [install.sh] IP detectada: 192.168.1.176
+[2026-03-17 00:03:08] [INFO] [install.sh] Modo dry-run: false
+[2026-03-17 00:03:08] [INFO] [install.sh] Log de sesi√≥n: /opt/confiraspa/logs/install_20260317_000308.log
+--- Etapa: 00-update ---
+[2026-03-17 00:03:08] [INFO] [install.sh] Script: scripts/00-system/00-update.sh
+--- Actualizaci√≥n del Sistema y Parches de Seguridad ---
+[2026-03-17 00:03:08] [INFO] [00-update.sh] Actualizando repositorios y paquetes del sistema...
+[2026-03-17 00:03:08] [INFO] [utils.sh] Actualizando lista de paquetes
+[2026-03-17 00:03:10] [INFO] [utils.sh] Aplicando actualizaciones pendientes
+[2026-03-17 00:03:11] [INFO] [utils.sh] Aplicando actualizaciones de distribuci√≥n
+[2026-03-17 00:03:13] [INFO] [utils.sh] Eliminando dependencias hu√©rfanas
+Reading package lists...
+Building dependency tree...
+Reading state information...
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+[2026-03-17 00:03:14] [INFO] [utils.sh] Limpiando cach√© de apt
+[2026-03-17 00:03:14] [INFO] [00-update.sh] Configurando actualizaciones autom√°ticas de seguridad...
+[2026-03-17 00:03:14] [INFO] [00-update.sh] Generando configuraci√≥n en: /etc/apt/apt.conf.d/52confiraspa-unattended
+[2026-03-17 00:03:14] [INFO] [utils.sh] Ejecutando: tee /etc/apt/apt.conf.d/52confiraspa-unattended
+// Configuraci√≥n Gestionada por Confiraspa
+// Sobrescribe valores por defecto.
+
+Unattended-Upgrade::Allowed-Origins {
+    "${distro_id}:${distro_codename}";
+    "${distro_id}:${distro_codename}-security";
+    "${distro_id}ESMApps:${distro_codename}-apps-security";
+    "${distro_id}ESM:${distro_codename}-infra-security";
+    "Raspbian:${distro_codename}";
+    "Raspberry Pi Foundation:${distro_codename}";
+};
+
+Unattended-Upgrade::Package-Blacklist {
+    // Agrega paquetes aqu√≠ si quieres evitar que se actualicen solos
+    // "docker-ce";
+};
+
+// Opciones de comportamiento
+Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+Unattended-Upgrade::MinimalSteps "true";
+Unattended-Upgrade::InstallOnShutdown "false";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+Unattended-Upgrade::Automatic-Reboot "false"; // Cambia a "true" si quieres reinicios a las 4am
+Unattended-Upgrade::Automatic-Reboot-Time "04:00";
+[2026-03-17 00:03:14] [INFO] [00-update.sh] Configurando frecuencia diaria en: /etc/apt/apt.conf.d/20auto-upgrades
+[2026-03-17 00:03:14] [INFO] [utils.sh] Ejecutando: tee /etc/apt/apt.conf.d/20auto-upgrades
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Download-Upgradeable-Packages "1";
+APT::Periodic::AutocleanInterval "7";
+APT::Periodic::Unattended-Upgrade "1";
+[2026-03-17 00:03:14] [INFO] [00-update.sh] Verificando configuraci√≥n de unattended-upgrades...
+[2026-03-17 00:03:14] [INFO] [utils.sh] Test de configuraci√≥n unattended-upgrades
+loading plugins from ['/etc/unattended-upgrades/plugins/', '/usr/share/unattended-upgrades/plugins']
+Checking if system is running on battery is skipped. Please install powermgmt-base package to check power status and skip installing updates when the system is running on battery.
+Starting unattended upgrades script
+Allowed origins are: o=Debian,a=trixie, o=Debian,a=trixie-security, o=DebianESMApps,a=trixie-apps-security, o=DebianESM,a=trixie-infra-security, o=Raspbian,a=trixie, o=Raspberry Pi Foundation,a=trixie, origin=Debian,codename=trixie,label=Debian, origin=Debian,codename=trixie,label=Debian-Security, origin=Debian,codename=trixie-security,label=Debian-Security
+Initial blacklist: 
+Initial whitelist (not strict): 
+Marking not allowed <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/archive.raspberrypi.com_debian_dists_trixie_main_binary-armhf_Packages'  a=stable,c=main,v=,o=Raspberry Pi Foundation,l=Raspberry Pi Foundation arch='armhf' site='archive.raspberrypi.com' IndexType='Debian Package Index' Size=1340081 ID:20> with -32768 pin
+Marking not allowed <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/archive.raspberrypi.com_debian_dists_trixie_main_binary-arm64_Packages'  a=stable,c=main,v=,o=Raspberry Pi Foundation,l=Raspberry Pi Foundation arch='arm64' site='archive.raspberrypi.com' IndexType='Debian Package Index' Size=1360938 ID:19> with -32768 pin
+Marking not allowed <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_i18n_Translation-en'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='' site='deb.debian.org' IndexType='Debian Translation Index' Size=13794 ID:14> with -32768 pin
+Marking not allowed <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_binary-armhf_Packages'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='armhf' site='deb.debian.org' IndexType='Debian Package Index' Size=25369 ID:13> with -32768 pin
+Marking not allowed <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_binary-arm64_Packages'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='arm64' site='deb.debian.org' IndexType='Debian Package Index' Size=26678 ID:12> with -32768 pin
+Applying pinning: PkgFilePin(id=20, priority=-32768)
+Applying pin -32768 to package_file: <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/archive.raspberrypi.com_debian_dists_trixie_main_binary-armhf_Packages'  a=stable,c=main,v=,o=Raspberry Pi Foundation,l=Raspberry Pi Foundation arch='armhf' site='archive.raspberrypi.com' IndexType='Debian Package Index' Size=1340081 ID:20>
+Applying pinning: PkgFilePin(id=19, priority=-32768)
+Applying pin -32768 to package_file: <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/archive.raspberrypi.com_debian_dists_trixie_main_binary-arm64_Packages'  a=stable,c=main,v=,o=Raspberry Pi Foundation,l=Raspberry Pi Foundation arch='arm64' site='archive.raspberrypi.com' IndexType='Debian Package Index' Size=1360938 ID:19>
+Applying pinning: PkgFilePin(id=14, priority=-32768)
+Applying pin -32768 to package_file: <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_i18n_Translation-en'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='' site='deb.debian.org' IndexType='Debian Translation Index' Size=13794 ID:14>
+Applying pinning: PkgFilePin(id=13, priority=-32768)
+Applying pin -32768 to package_file: <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_binary-armhf_Packages'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='armhf' site='deb.debian.org' IndexType='Debian Package Index' Size=25369 ID:13>
+Applying pinning: PkgFilePin(id=12, priority=-32768)
+Applying pin -32768 to package_file: <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_binary-arm64_Packages'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='arm64' site='deb.debian.org' IndexType='Debian Package Index' Size=26678 ID:12>
+Using (^linux-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^kfreebsd-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^gnumach-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^.*-modules-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^.*-kernel-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^linux-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^kfreebsd-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^gnumach-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^.*-modules-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^.*-kernel-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$) regexp to find kernel packages
+Using (^linux-.*-6\.12\.47\+rpt\-rpi\-2712$|^kfreebsd-.*-6\.12\.47\+rpt\-rpi\-2712$|^gnumach-.*-6\.12\.47\+rpt\-rpi\-2712$|^.*-modules-6\.12\.47\+rpt\-rpi\-2712$|^.*-kernel-6\.12\.47\+rpt\-rpi\-2712$|^linux-.*-6\.12\.47\+rpt\-rpi\-2712$|^kfreebsd-.*-6\.12\.47\+rpt\-rpi\-2712$|^gnumach-.*-6\.12\.47\+rpt\-rpi\-2712$|^.*-modules-6\.12\.47\+rpt\-rpi\-2712$|^.*-kernel-6\.12\.47\+rpt\-rpi\-2712$) regexp to find running kernel packages
+pkgs that look like they should be upgraded: 
+Fetched 0 B in 0s (0 B/s)                                                       
+fetch.run() result: 0
+Packages blacklist due to conffile prompts: []
+No packages found that can be upgraded unattended and no pending auto-removals
+The list of kept packages can't be calculated in dry-run mode.
+upgrade result: True No packages found that can be upgraded unattended and no pending auto-removals
+[2026-03-17 00:03:17] [OK] [00-update.sh] Sistema actualizado y actualizaciones autom√°ticas configuradas.
+[2026-03-17 00:03:17] [OK] [install.sh] Etapa '00-update' completada.
+--- Etapa: 10-users ---
+[2026-03-17 00:03:17] [INFO] [install.sh] Script: scripts/00-system/10-users.sh
+--- Configuraci√≥n de Usuarios y Grupos ---
+[2026-03-17 00:03:17] [INFO] [10-users.sh] Grupo 'media' ya existe.
+[2026-03-17 00:03:17] [INFO] [10-users.sh] El usuario 'pi' ya existe.
+[2026-03-17 00:03:17] [INFO] [10-users.sh] Actualizando contrase√±a para pi...
+[2026-03-17 00:03:17] [INFO] [utils.sh] Aplicando contrase√±a
+[2026-03-17 00:03:17] [INFO] [10-users.sh] A√±adiendo 'pi' a grupos necesarios...
+[2026-03-17 00:03:17] [OK] [10-users.sh] Configuraci√≥n de usuarios finalizada.
+[2026-03-17 00:03:17] [INFO] [10-users.sh] NOTA: Si has cambiado tus propios grupos, necesitar√°s cerrar sesi√≥n y volver a entrar.
+[2026-03-17 00:03:17] [OK] [install.sh] Etapa '10-users' completada.
+--- Etapa: 20-storage ---
+[2026-03-17 00:03:17] [INFO] [install.sh] Script: scripts/00-system/20-storage.sh
+--- Configuraci√≥n de almacenamiento y permisos ---
+[2026-03-17 00:03:17] [INFO] [utils.sh] Asegurando directorio: /media/WDElements (root:root 0755)
+[2026-03-17 00:03:17] [INFO] [utils.sh] Asegurando directorio: /media/DiscoDuro (root:root 0755)
+[2026-03-17 00:03:17] [INFO] [utils.sh] Asegurando directorio: /media/Backup (root:root 0755)
+[2026-03-17 00:03:17] [INFO] [20-storage.sh] Backup de fstab: /etc/fstab.bak.20260317_000317
+[2026-03-17 00:03:17] [OK] [20-storage.sh] fstab actualizado.
+[2026-03-17 00:03:18] [INFO] [20-storage.sh] Configurando identidad del stack multimedia: media:media
+[2026-03-17 00:03:18] [INFO] [20-storage.sh] Grupo 'media' ya existe.
+[2026-03-17 00:03:18] [INFO] [20-storage.sh] Usuario 'media' ya existe.
+[2026-03-17 00:03:18] [INFO] [20-storage.sh] Creando estructura de directorios multimedia...
+[2026-03-17 00:03:18] [INFO] [utils.sh] Asegurando directorio: /media/WDElements (media:media 2775)
+[2026-03-17 00:03:18] [INFO] [utils.sh] Asegurando directorio: /media/DiscoDuro (media:media 2775)
+[2026-03-17 00:03:18] [INFO] [utils.sh] Asegurando directorio: /media/Backup (media:media 2775)
+[2026-03-17 00:03:18] [INFO] [utils.sh] Asegurando directorio: /media/WDElements/Series (media:media 2775)
+[2026-03-17 00:03:18] [INFO] [utils.sh] Asegurando directorio: /media/WDElements/Peliculas (media:media 2775)
+[2026-03-17 00:03:18] [INFO] [utils.sh] Asegurando directorio: /media/WDElements/Musica (media:media 2775)
+[2026-03-17 00:03:18] [INFO] [utils.sh] Asegurando directorio: /media/WDElements/Libros (media:media 2775)
+[2026-03-17 00:03:18] [INFO] [utils.sh] Asegurando directorio: /media/DiscoDuro/completo (media:media 2775)
+[2026-03-17 00:03:18] [OK] [20-storage.sh] Montaje activo: /media/WDElements
+[2026-03-17 00:03:18] [OK] [20-storage.sh] Montaje activo: /media/DiscoDuro
+[2026-03-17 00:03:18] [OK] [20-storage.sh] Montaje activo: /media/Backup
+[2026-03-17 00:03:18] [OK] [20-storage.sh] Almacenamiento y estructura de directorios configurados correctamente.
+[2026-03-17 00:03:18] [OK] [install.sh] Etapa '20-storage' completada.
+[2026-03-17 00:03:18] [WARN] [install.sh] Script opcional ausente, se omite: scripts/10-network/00-static-ip.sh
+--- Etapa: firewall ---
+[2026-03-17 00:03:18] [INFO] [install.sh] Script: scripts/10-network/firewall.sh
+[2026-03-17 00:03:18] [INFO] [firewall.sh] Subred detectada: 192.168.1.176/24
+--- Hardening de Red (Firewall UFW) ---
+[2026-03-17 00:03:18] [INFO] [firewall.sh] Estado previo: Reseteando reglas...
+[2026-03-17 00:03:18] [INFO] [utils.sh] Ejecutando: ufw --force reset > /dev/null
+[2026-03-17 00:03:19] [INFO] [firewall.sh] Pol√≠tica base: Cerrar todo, permitir salida.
+[2026-03-17 00:03:19] [INFO] [utils.sh] Ejecutando: ufw default deny incoming
+Default incoming policy changed to 'deny'
+(be sure to update your rules accordingly)
+[2026-03-17 00:03:19] [INFO] [utils.sh] Ejecutando: ufw default allow outgoing
+Default outgoing policy changed to 'allow'
+(be sure to update your rules accordingly)
+ -> Zona de Administraci√≥n (SSH)
+[2026-03-17 00:03:20] [INFO] [firewall.sh] Configurando SSH en puerto 22 (Restringido a LAN)...
+[2026-03-17 00:03:20] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 22 proto tcp comment 'SSH Admin (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:20] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 22 proto tcp comment 'SSH Admin (LAN)'
+Rules updated
+[2026-03-17 00:03:20] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 22 proto tcp comment 'SSH Admin (LAN)'
+Rules updated
+ -> Zona P√∫blica (P2P y Streaming)
+[2026-03-17 00:03:20] [INFO] [firewall.sh] Configurando P2P (Transmission Peers)...
+[2026-03-17 00:03:20] [INFO] [utils.sh] Ejecutando: ufw allow 51413/tcp comment 'Torrent Peer TCP'
+Rules updated
+Rules updated (v6)
+[2026-03-17 00:03:20] [INFO] [utils.sh] Ejecutando: ufw allow 51413/udp comment 'Torrent Peer UDP'
+Rules updated
+Rules updated (v6)
+[2026-03-17 00:03:20] [INFO] [firewall.sh] Configurando Plex Streaming...
+[2026-03-17 00:03:20] [INFO] [utils.sh] Ejecutando: ufw allow 32400/tcp comment 'Plex Main'
+Rules updated
+Rules updated (v6)
+[2026-03-17 00:03:21] [INFO] [firewall.sh] Configurando aMule...
+[2026-03-17 00:03:21] [INFO] [utils.sh] Ejecutando: ufw allow 4662/tcp comment 'eD2k TCP (Global)'
+Rules updated
+Rules updated (v6)
+[2026-03-17 00:03:21] [INFO] [utils.sh] Ejecutando: ufw allow 4672/udp comment 'Kademlia UDP (Global)'
+Rules updated
+Rules updated (v6)
+ -> Zona Privada (Solo LAN/VPN)
+[2026-03-17 00:03:21] [INFO] [firewall.sh]   -> Configurando 10000/tcp para LAN (Webmin Admin)...
+[2026-03-17 00:03:21] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 10000 proto tcp comment 'Webmin Admin (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:21] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 10000 proto tcp comment 'Webmin Admin (LAN)'
+Rules updated
+[2026-03-17 00:03:21] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 10000 proto tcp comment 'Webmin Admin (LAN)'
+Rules updated
+[2026-03-17 00:03:21] [INFO] [firewall.sh]   -> Configurando Samba y Rsync (LAN)...
+[2026-03-17 00:03:21] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 137,138 proto udp comment 'Samba UDP (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:22] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 139,445 proto tcp comment 'Samba TCP (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:22] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 873 proto tcp comment 'Rsync Backup (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:22] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 137,138 proto udp comment 'Samba UDP (LAN)'
+Rules updated
+[2026-03-17 00:03:22] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 139,445 proto tcp comment 'Samba TCP (LAN)'
+Rules updated
+[2026-03-17 00:03:22] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 873 proto tcp comment 'Rsync Backup (LAN)'
+Rules updated
+[2026-03-17 00:03:22] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 137,138 proto udp comment 'Samba UDP (LAN)'
+Rules updated
+[2026-03-17 00:03:23] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 139,445 proto tcp comment 'Samba TCP (LAN)'
+Rules updated
+[2026-03-17 00:03:23] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 873 proto tcp comment 'Rsync Backup (LAN)'
+Rules updated
+[2026-03-17 00:03:23] [INFO] [firewall.sh]   -> Configurando 9091/tcp para LAN (Transmission Web UI)...
+[2026-03-17 00:03:23] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 9091 proto tcp comment 'Transmission Web UI (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:23] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 9091 proto tcp comment 'Transmission Web UI (LAN)'
+Rules updated
+[2026-03-17 00:03:23] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 9091 proto tcp comment 'Transmission Web UI (LAN)'
+Rules updated
+[2026-03-17 00:03:24] [INFO] [firewall.sh]   -> Configurando 4711/tcp para LAN (aMule Web UI)...
+[2026-03-17 00:03:24] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 4711 proto tcp comment 'aMule Web UI (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:24] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 4711 proto tcp comment 'aMule Web UI (LAN)'
+Rules updated
+[2026-03-17 00:03:24] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 4711 proto tcp comment 'aMule Web UI (LAN)'
+Rules updated
+[2026-03-17 00:03:24] [INFO] [firewall.sh]   -> Configurando 6767/tcp para LAN (Bazarr UI)...
+[2026-03-17 00:03:24] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 6767 proto tcp comment 'Bazarr UI (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:24] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 6767 proto tcp comment 'Bazarr UI (LAN)'
+Rules updated
+[2026-03-17 00:03:24] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 6767 proto tcp comment 'Bazarr UI (LAN)'
+Rules updated
+[2026-03-17 00:03:25] [INFO] [firewall.sh]   -> Configurando 8080/tcp para LAN (Calibre Server)...
+[2026-03-17 00:03:25] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 8080 proto tcp comment 'Calibre Server (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:25] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 8080 proto tcp comment 'Calibre Server (LAN)'
+Rules updated
+[2026-03-17 00:03:25] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 8080 proto tcp comment 'Calibre Server (LAN)'
+Rules updated
+[2026-03-17 00:03:25] [INFO] [firewall.sh]   -> Configurando 8989/tcp para LAN (Sonarr)...
+[2026-03-17 00:03:25] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 8989 proto tcp comment 'Sonarr (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:25] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 8989 proto tcp comment 'Sonarr (LAN)'
+Rules updated
+[2026-03-17 00:03:26] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 8989 proto tcp comment 'Sonarr (LAN)'
+Rules updated
+[2026-03-17 00:03:26] [INFO] [firewall.sh]   -> Configurando 7878/tcp para LAN (Radarr)...
+[2026-03-17 00:03:26] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 7878 proto tcp comment 'Radarr (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:26] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 7878 proto tcp comment 'Radarr (LAN)'
+Rules updated
+[2026-03-17 00:03:26] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 7878 proto tcp comment 'Radarr (LAN)'
+Rules updated
+[2026-03-17 00:03:26] [INFO] [firewall.sh]   -> Configurando 8686/tcp para LAN (Lidarr)...
+[2026-03-17 00:03:26] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 8686 proto tcp comment 'Lidarr (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:27] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 8686 proto tcp comment 'Lidarr (LAN)'
+Rules updated
+[2026-03-17 00:03:27] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 8686 proto tcp comment 'Lidarr (LAN)'
+Rules updated
+[2026-03-17 00:03:27] [INFO] [firewall.sh]   -> Configurando 8787/tcp para LAN (Readarr)...
+[2026-03-17 00:03:27] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 8787 proto tcp comment 'Readarr (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:27] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 8787 proto tcp comment 'Readarr (LAN)'
+Rules updated
+[2026-03-17 00:03:27] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 8787 proto tcp comment 'Readarr (LAN)'
+Rules updated
+[2026-03-17 00:03:27] [INFO] [firewall.sh]   -> Configurando 9696/tcp para LAN (Prowlarr)...
+[2026-03-17 00:03:27] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 9696 proto tcp comment 'Prowlarr (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:28] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 9696 proto tcp comment 'Prowlarr (LAN)'
+Rules updated
+[2026-03-17 00:03:28] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 9696 proto tcp comment 'Prowlarr (LAN)'
+Rules updated
+[2026-03-17 00:03:28] [INFO] [firewall.sh]   -> Configurando 6969/tcp para LAN (Whisparr)...
+[2026-03-17 00:03:28] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 6969 proto tcp comment 'Whisparr (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:28] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 6969 proto tcp comment 'Whisparr (LAN)'
+Rules updated
+[2026-03-17 00:03:28] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 6969 proto tcp comment 'Whisparr (LAN)'
+Rules updated
+[2026-03-17 00:03:29] [INFO] [firewall.sh]   -> Configurando 3389/tcp para LAN (XRDP)...
+[2026-03-17 00:03:29] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 3389 proto tcp comment 'XRDP (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:29] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 3389 proto tcp comment 'XRDP (LAN)'
+Rules updated
+[2026-03-17 00:03:29] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 3389 proto tcp comment 'XRDP (LAN)'
+Rules updated
+[2026-03-17 00:03:29] [INFO] [firewall.sh]   -> Configurando 5900/tcp para LAN (VNC)...
+[2026-03-17 00:03:29] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 5900 proto tcp comment 'VNC (LAN)'
+WARN: Rule changed after normalization
+Rules updated
+[2026-03-17 00:03:29] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 5900 proto tcp comment 'VNC (LAN)'
+Rules updated
+[2026-03-17 00:03:30] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 5900 proto tcp comment 'VNC (LAN)'
+Rules updated
+ -> Activaci√≥n
+[2026-03-17 00:03:30] [INFO] [utils.sh] Ejecutando: ufw logging low
+Logging enabled
+[2026-03-17 00:03:30] [WARN] [firewall.sh] IMPORTANTE: Si est√°s conectado por SSH desde fuera de tu red local, esta acci√≥n cortar√° la conexi√≥n.
+[2026-03-17 00:03:30] [INFO] [firewall.sh] Activando firewall...
+[2026-03-17 00:03:30] [INFO] [utils.sh] Ejecutando: ufw --force enable
+Firewall is active and enabled on system startup
+[2026-03-17 00:03:31] [INFO] [utils.sh] Ejecutando: ufw reload
+Firewall reloaded
+[2026-03-17 00:03:33] [OK] [firewall.sh] Firewall 'LAN-Hardened' activo.
+[2026-03-17 00:03:33] [INFO] [utils.sh] Ejecutando: ufw status numbered
+Status: active
+
+     To                         Action      From
+     --                         ------      ----
+[ 1] 22/tcp                     ALLOW IN    192.168.1.0/24             # SSH Admin (LAN)
+[ 2] 22/tcp                     ALLOW IN    10.0.0.0/8                 # SSH Admin (LAN)
+[ 3] 22/tcp                     ALLOW IN    100.64.0.0/10              # SSH Admin (LAN)
+[ 4] 51413/tcp                  ALLOW IN    Anywhere                   # Torrent Peer TCP
+[ 5] 51413/udp                  ALLOW IN    Anywhere                   # Torrent Peer UDP
+[ 6] 32400/tcp                  ALLOW IN    Anywhere                   # Plex Main
+[ 7] 4662/tcp                   ALLOW IN    Anywhere                   # eD2k TCP (Global)
+[ 8] 4672/udp                   ALLOW IN    Anywhere                   # Kademlia UDP (Global)
+[ 9] 10000/tcp                  ALLOW IN    192.168.1.0/24             # Webmin Admin (LAN)
+[10] 10000/tcp                  ALLOW IN    10.0.0.0/8                 # Webmin Admin (LAN)
+[11] 10000/tcp                  ALLOW IN    100.64.0.0/10              # Webmin Admin (LAN)
+[12] 137,138/udp                ALLOW IN    192.168.1.0/24             # Samba UDP (LAN)
+[13] 139,445/tcp                ALLOW IN    192.168.1.0/24             # Samba TCP (LAN)
+[14] 873/tcp                    ALLOW IN    192.168.1.0/24             # Rsync Backup (LAN)
+[15] 137,138/udp                ALLOW IN    10.0.0.0/8                 # Samba UDP (LAN)
+[16] 139,445/tcp                ALLOW IN    10.0.0.0/8                 # Samba TCP (LAN)
+[17] 873/tcp                    ALLOW IN    10.0.0.0/8                 # Rsync Backup (LAN)
+[18] 137,138/udp                ALLOW IN    100.64.0.0/10              # Samba UDP (LAN)
+[19] 139,445/tcp                ALLOW IN    100.64.0.0/10              # Samba TCP (LAN)
+[20] 873/tcp                    ALLOW IN    100.64.0.0/10              # Rsync Backup (LAN)
+[21] 9091/tcp                   ALLOW IN    192.168.1.0/24             # Transmission Web UI (LAN)
+[22] 9091/tcp                   ALLOW IN    10.0.0.0/8                 # Transmission Web UI (LAN)
+[23] 9091/tcp                   ALLOW IN    100.64.0.0/10              # Transmission Web UI (LAN)
+[24] 4711/tcp                   ALLOW IN    192.168.1.0/24             # aMule Web UI (LAN)
+[25] 4711/tcp                   ALLOW IN    10.0.0.0/8                 # aMule Web UI (LAN)
+[26] 4711/tcp                   ALLOW IN    100.64.0.0/10              # aMule Web UI (LAN)
+[27] 6767/tcp                   ALLOW IN    192.168.1.0/24             # Bazarr UI (LAN)
+[28] 6767/tcp                   ALLOW IN    10.0.0.0/8                 # Bazarr UI (LAN)
+[29] 6767/tcp                   ALLOW IN    100.64.0.0/10              # Bazarr UI (LAN)
+[30] 8080/tcp                   ALLOW IN    192.168.1.0/24             # Calibre Server (LAN)
+[31] 8080/tcp                   ALLOW IN    10.0.0.0/8                 # Calibre Server (LAN)
+[32] 8080/tcp                   ALLOW IN    100.64.0.0/10              # Calibre Server (LAN)
+[33] 8989/tcp                   ALLOW IN    192.168.1.0/24             # Sonarr (LAN)
+[34] 8989/tcp                   ALLOW IN    10.0.0.0/8                 # Sonarr (LAN)
+[35] 8989/tcp                   ALLOW IN    100.64.0.0/10              # Sonarr (LAN)
+[36] 7878/tcp                   ALLOW IN    192.168.1.0/24             # Radarr (LAN)
+[37] 7878/tcp                   ALLOW IN    10.0.0.0/8                 # Radarr (LAN)
+[38] 7878/tcp                   ALLOW IN    100.64.0.0/10              # Radarr (LAN)
+[39] 8686/tcp                   ALLOW IN    192.168.1.0/24             # Lidarr (LAN)
+[40] 8686/tcp                   ALLOW IN    10.0.0.0/8                 # Lidarr (LAN)
+[41] 8686/tcp                   ALLOW IN    100.64.0.0/10              # Lidarr (LAN)
+[42] 8787/tcp                   ALLOW IN    192.168.1.0/24             # Readarr (LAN)
+[43] 8787/tcp                   ALLOW IN    10.0.0.0/8                 # Readarr (LAN)
+[44] 8787/tcp                   ALLOW IN    100.64.0.0/10              # Readarr (LAN)
+[45] 9696/tcp                   ALLOW IN    192.168.1.0/24             # Prowlarr (LAN)
+[46] 9696/tcp                   ALLOW IN    10.0.0.0/8                 # Prowlarr (LAN)
+[47] 9696/tcp                   ALLOW IN    100.64.0.0/10              # Prowlarr (LAN)
+[48] 6969/tcp                   ALLOW IN    192.168.1.0/24             # Whisparr (LAN)
+[49] 6969/tcp                   ALLOW IN    10.0.0.0/8                 # Whisparr (LAN)
+[50] 6969/tcp                   ALLOW IN    100.64.0.0/10              # Whisparr (LAN)
+[51] 3389/tcp                   ALLOW IN    192.168.1.0/24             # XRDP (LAN)
+[52] 3389/tcp                   ALLOW IN    10.0.0.0/8                 # XRDP (LAN)
+[53] 3389/tcp                   ALLOW IN    100.64.0.0/10              # XRDP (LAN)
+[54] 5900/tcp                   ALLOW IN    192.168.1.0/24             # VNC (LAN)
+[55] 5900/tcp                   ALLOW IN    10.0.0.0/8                 # VNC (LAN)
+[56] 5900/tcp                   ALLOW IN    100.64.0.0/10              # VNC (LAN)
+[57] 51413/tcp (v6)             ALLOW IN    Anywhere (v6)              # Torrent Peer TCP
+[58] 51413/udp (v6)             ALLOW IN    Anywhere (v6)              # Torrent Peer UDP
+[59] 32400/tcp (v6)             ALLOW IN    Anywhere (v6)              # Plex Main
+[60] 4662/tcp (v6)              ALLOW IN    Anywhere (v6)              # eD2k TCP (Global)
+[61] 4672/udp (v6)              ALLOW IN    Anywhere (v6)              # Kademlia UDP (Global)
+
+[2026-03-17 00:03:33] [OK] [install.sh] Etapa 'firewall' completada.
+--- Etapa: 10-xrdp ---
+[2026-03-17 00:03:33] [INFO] [install.sh] Script: scripts/10-network/10-xrdp.sh
+--- Configuraci√≥n de Acceso Remoto (XRDP) ---
+[2026-03-17 00:03:33] [OK] [10-xrdp.sh] XRDP ya est√° instalado y ejecut√°ndose.
+[2026-03-17 00:03:33] [OK] [install.sh] Etapa '10-xrdp' completada.
+--- Etapa: 20-vnc ---
+[2026-03-17 00:03:33] [INFO] [install.sh] Script: scripts/10-network/20-vnc.sh
+--- Configuraci√≥n de VNC (RealVNC) ---
+[2026-03-17 00:03:33] [INFO] [20-vnc.sh] Archivo de configuraci√≥n detectado: /boot/firmware/config.txt
+[2026-03-17 00:03:33] [INFO] [20-vnc.sh] Configurando resoluci√≥n forzada (720p) para modo sin monitor...
+[2026-03-17 00:03:33] [INFO] [20-vnc.sh] Gestionando servicio VNC...
+[2026-03-17 00:03:33] [OK] [20-vnc.sh] El servicio VNC ya est√° corriendo.
+[2026-03-17 00:03:33] [OK] [20-vnc.sh] VNC Configurado.
+[2026-03-17 00:03:33] [INFO] [20-vnc.sh] Resoluci√≥n forzada: 1280x720 (Requiere reinicio para aplicar cambios de v√≠deo).
+[2026-03-17 00:03:33] [INFO] [20-vnc.sh] Con√©ctate a: 192.168.1.176:5900
+[2026-03-17 00:03:33] [OK] [install.sh] Etapa '20-vnc' completada.
+--- Etapa: samba ---
+[2026-03-17 00:03:33] [INFO] [install.sh] Script: scripts/30-services/samba.sh
+--- Configuraci√≥n de Servidor NAS (Samba) ---
+[2026-03-17 00:03:33] [INFO] [samba.sh] Objetivo: Compartir recursos para el usuario 'pi'
+[2026-03-17 00:03:33] [INFO] [samba.sh] El usuario 'pi' ya pertenece al grupo 'media'.
+[2026-03-17 00:03:33] [INFO] [samba.sh] Renderizando nueva configuraci√≥n de Samba...
+[2026-03-17 00:03:33] [INFO] [samba.sh] Validando sintaxis de la configuraci√≥n...
+[2026-03-17 00:03:33] [INFO] [samba.sh] La configuraci√≥n de Samba no ha cambiado. Saltando escritura.
+[2026-03-17 00:03:33] [INFO] [samba.sh] Sincronizando credenciales de Samba...
+[2026-03-17 00:03:33] [INFO] [samba.sh] Actualizando contrase√±a para usuario Samba existente.
+[2026-03-17 00:03:33] [INFO] [utils.sh] Recargando demonios de sistema
+[2026-03-17 00:03:33] [INFO] [utils.sh] Habilitando servicio Samba
+Synchronizing state of smbd.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install enable smbd
+[2026-03-17 00:03:35] [INFO] [utils.sh] Reiniciando servicio Samba
+[2026-03-17 00:03:35] [OK] [samba.sh] Samba est√° operativo en 192.168.1.176
+[2026-03-17 00:03:35] [OK] [install.sh] Etapa 'samba' completada.
+--- Etapa: rclone ---
+[2026-03-17 00:03:35] [INFO] [install.sh] Script: scripts/30-services/rclone.sh
+--- Instalaci√≥n de Herramienta Cloud (Rclone) ---
+[2026-03-17 00:03:35] [INFO] [rclone.sh] Configurando soporte FUSE (File System in User Space)...
+[2026-03-17 00:03:35] [INFO] [rclone.sh] Opci√≥n 'user_allow_other' ya activa en /etc/fuse.conf.
+[2026-03-17 00:03:35] [OK] [rclone.sh] Rclone ya est√° instalado: rclone v1.73.2
+[2026-03-17 00:03:35] [INFO] [rclone.sh] No hay backup de configuraci√≥n para restaurar.
+[2026-03-17 00:03:35] [OK] [rclone.sh] Rclone instalado correctamente.
+[2026-03-17 00:03:35] [WARN] [rclone.sh] Rclone no tiene configuraci√≥n activa.
+[2026-03-17 00:03:35] [INFO] [rclone.sh] Ejecuta 'rclone config' para a√±adir Google Drive, Dropbox, etc.
+[2026-03-17 00:03:35] [OK] [install.sh] Etapa 'rclone' completada.
+--- Etapa: rsync ---
+[2026-03-17 00:03:35] [INFO] [install.sh] Script: scripts/30-services/rsync.sh
+--- Configuraci√≥n de Sincronizaci√≥n (Rsync Server) ---
+[2026-03-17 00:03:35] [INFO] [rsync.sh] Habilitando arranque en /etc/default/rsync...
+[2026-03-17 00:03:35] [INFO] [utils.sh] Ejecutando: sed -i 's/^RSYNC_ENABLE=false/RSYNC_ENABLE=true/' /etc/default/rsync
+[2026-03-17 00:03:35] [INFO] [utils.sh] Ejecutando: sed -i 's/^#RSYNC_ENABLE=true/RSYNC_ENABLE=true/' /etc/default/rsync
+[2026-03-17 00:03:35] [INFO] [rsync.sh] Desplegando configuraci√≥n...
+[2026-03-17 00:03:35] [INFO] [utils.sh] Ejecutando: tee /etc/rsyncd.conf
+# /etc/rsyncd.conf configuration file
+# Configuraci√≥n Gestionada por Confiraspa (v1.0 Final)
+
+# --- Global Settings ---
+uid = media
+gid = media
+use chroot = yes
+max connections = 10
+pid file = /var/run/rsyncd.pid
+log file = /var/log/rsync.log
+transfer logging = yes
+timeout = 300
+# Evita problemas de mapeo de usuarios entre distintos sistemas (Mac/Linux/Windows)
+numeric ids = yes
+
+# --- Modules ---
+
+[Backup]
+    path = /media/Backup
+    comment = Disco de Copias de Seguridad (NAS)
+    read only = no
+    list = yes
+    # Seguridad LAN
+    hosts allow = 192.168.0.0/16 172.16.0.0/12 10.0.0.0/8
+    hosts deny = *
+    # Optimizaci√≥n CPU
+    dont compress = *.gz *.tgz *.zip *.z *.Z *.rpm *.deb *.bz2 *.mp4 *.mkv *.avi *.jpg
+
+[Descargas]
+    path = /media/DiscoDuro/completo
+    comment = Carpeta de Descargas Completadas
+    read only = yes
+    hosts allow = 192.168.0.0/16 172.16.0.0/12 10.0.0.0/8[2026-03-17 00:03:35] [INFO] [utils.sh] Ejecutando: chmod 644 /etc/rsyncd.conf
+[2026-03-17 00:03:35] [INFO] [rsync.sh] Reiniciando servicio...
+[2026-03-17 00:03:35] [INFO] [utils.sh] Ejecutando: systemctl daemon-reload
+[2026-03-17 00:03:35] [INFO] [utils.sh] Ejecutando: systemctl restart rsync
+[2026-03-17 00:03:36] [OK] [rsync.sh] Servidor Rsync operativo.
+[2026-03-17 00:03:36] [INFO] [rsync.sh] ---------------------------------------------------
+[2026-03-17 00:03:36] [INFO] [rsync.sh] Endpoint:   rsync://192.168.1.176/
+[2026-03-17 00:03:36] [INFO] [rsync.sh] M√≥dulos:    [Backup] (RW), [Descargas] (RO)
+[2026-03-17 00:03:36] [INFO] [rsync.sh] Permisos:   Usuario 'media', Grupo 'media'
+[2026-03-17 00:03:36] [INFO] [rsync.sh] ---------------------------------------------------
+[2026-03-17 00:03:36] [OK] [install.sh] Etapa 'rsync' completada.
+--- Etapa: transmission ---
+[2026-03-17 00:03:36] [INFO] [install.sh] Script: scripts/30-services/transmission.sh
+--- Configuraci√≥n de Gestor de Descargas (Transmission) ---
+[2026-03-17 00:03:36] [INFO] [transmission.sh] Deteniendo servicio Transmission para aplicar configuraci√≥n...
+[2026-03-17 00:03:36] [INFO] [utils.sh] Ejecutando: systemctl stop transmission-daemon
+[2026-03-17 00:03:36] [INFO] [transmission.sh] Integrando usuario 'debian-transmission' en grupo 'media'...
+[2026-03-17 00:03:36] [INFO] [transmission.sh] Preparando directorios de descarga...
+[2026-03-17 00:03:36] [INFO] [utils.sh] Ejecutando: chown -R debian-transmission:media /media/DiscoDuro/completo
+[2026-03-17 00:03:36] [INFO] [utils.sh] Ejecutando: chmod -R 775 /media/DiscoDuro/completo
+[2026-03-17 00:03:36] [INFO] [utils.sh] Ejecutando: chmod g+s /media/DiscoDuro/completo
+[2026-03-17 00:03:36] [INFO] [utils.sh] Ejecutando: chown -R debian-transmission:media /media/DiscoDuro/incompleto
+[2026-03-17 00:03:36] [INFO] [utils.sh] Ejecutando: chmod -R 775 /media/DiscoDuro/incompleto
+[2026-03-17 00:03:36] [INFO] [utils.sh] Ejecutando: chmod g+s /media/DiscoDuro/incompleto
+[2026-03-17 00:03:36] [INFO] [transmission.sh] Generando settings.json desde plantilla...
+[2026-03-17 00:03:36] [INFO] [utils.sh] Ejecutando: tee /etc/transmission-daemon/settings.json
+{
+    "download-dir": "/media/DiscoDuro/completo",
+    "incomplete-dir": "/media/DiscoDuro/incompleto",
+    "incomplete-dir-enabled": true,
+    "rpc-enabled": true,
+    "rpc-bind-address": "0.0.0.0",
+    "rpc-port": "51413",
+    "rpc-username": "transmission",
+    "rpc-password": "transmission",
+    "rpc-whitelist-enabled": false,
+    "rpc-host-whitelist-enabled": false,
+    "dht-enabled": true,
+    "lpd-enabled": false,
+    "pex-enabled": true,
+    "peer-port": 51413,
+    "peer-port-random-on-start": false,
+    "port-forwarding-enabled": false,
+    "speed-limit-down-enabled": false,
+    "speed-limit-up-enabled": false,
+    "encryption": 1,
+    "cache-size-mb": 16,
+    "message-level": 2,
+    "umask": 2,
+    "script-torrent-done-enabled": false
+}[2026-03-17 00:03:36] [INFO] [utils.sh] Validando integridad del JSON de Transmission
+{
+  "download-dir": "/media/DiscoDuro/completo",
+  "incomplete-dir": "/media/DiscoDuro/incompleto",
+  "incomplete-dir-enabled": true,
+  "rpc-enabled": true,
+  "rpc-bind-address": "0.0.0.0",
+  "rpc-port": "51413",
+  "rpc-username": "transmission",
+  "rpc-password": "transmission",
+  "rpc-whitelist-enabled": false,
+  "rpc-host-whitelist-enabled": false,
+  "dht-enabled": true,
+  "lpd-enabled": false,
+  "pex-enabled": true,
+  "peer-port": 51413,
+  "peer-port-random-on-start": false,
+  "port-forwarding-enabled": false,
+  "speed-limit-down-enabled": false,
+  "speed-limit-up-enabled": false,
+  "encryption": 1,
+  "cache-size-mb": 16,
+  "message-level": 2,
+  "umask": 2,
+  "script-torrent-done-enabled": false
+}
+[2026-03-17 00:03:36] [INFO] [transmission.sh] Iniciando Transmission...
+[2026-03-17 00:03:36] [INFO] [utils.sh] Ejecutando: systemctl start transmission-daemon
+[2026-03-17 00:03:36] [INFO] [utils.sh] Ejecutando: systemctl enable transmission-daemon
+Synchronizing state of transmission-daemon.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install enable transmission-daemon
+[2026-03-17 00:03:38] [OK] [transmission.sh] Transmission operativo.
+[2026-03-17 00:03:38] [INFO] [transmission.sh] ---------------------------------------------------
+[2026-03-17 00:03:38] [INFO] [transmission.sh] URL:        http://192.168.1.176:51413
+[2026-03-17 00:03:38] [INFO] [transmission.sh] Usuario:    transmission
+[2026-03-17 00:03:38] [INFO] [transmission.sh] Contrase√±a: (Definida en .env)
+[2026-03-17 00:03:38] [INFO] [transmission.sh] Descargas:  /media/DiscoDuro/completo
+[2026-03-17 00:03:38] [INFO] [transmission.sh] ---------------------------------------------------
+[2026-03-17 00:03:38] [OK] [install.sh] Etapa 'transmission' completada.
+--- Etapa: arr_suite ---
+[2026-03-17 00:03:38] [INFO] [install.sh] Script: scripts/30-services/arr_suite.sh
+--- Instalaci√≥n de Suite Multimedia *Arr ---
+[2026-03-17 00:03:38] [INFO] [arr_suite.sh] Verificando usuario de servicios (media)...
+ -> Procesando: Prowlarr
+[2026-03-17 00:03:38] [INFO] [arr_suite.sh] Prowlarr ya est√° instalado.
+[2026-03-17 00:03:38] [INFO] [arr_suite.sh] Saltando descarga (Modo Idempotente / No-Upgrade).
+[2026-03-17 00:03:38] [INFO] [utils.sh] Ejecutando: chown -R media:media /var/lib/prowlarr
+[2026-03-17 00:03:38] [INFO] [utils.sh] Ejecutando: chmod 775 /var/lib/prowlarr
+[2026-03-17 00:03:38] [INFO] [utils.sh] Ejecutando: tee /etc/systemd/system/prowlarr.service
+[Unit]
+Description=Prowlarr Daemon (Native)
+After=network.target
+
+[Service]
+User=media
+Group=media
+UMask=0002
+Type=simple
+ExecStart=/opt/Prowlarr/Prowlarr -nobrowser -data=/var/lib/prowlarr
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+# Security Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+[2026-03-17 00:03:38] [INFO] [utils.sh] Ejecutando: systemctl daemon-reload
+[2026-03-17 00:03:38] [INFO] [arr_suite.sh] Servicio prowlarr activo. Reiniciando para aplicar cambios...
+[2026-03-17 00:03:38] [INFO] [utils.sh] Ejecutando: systemctl restart prowlarr
+[2026-03-17 00:03:38] [INFO] [utils.sh] Esperando a que Prowlarr escuche en localhost:9696...
+[2026-03-17 00:03:40] [OK] [utils.sh] Prowlarr est√° operativo (localhost:9696).
+[2026-03-17 00:03:40] [OK] [arr_suite.sh] Prowlarr instalado y respondiendo.
+[2026-03-17 00:03:40] [INFO] [arr_suite.sh] ---------------------------------------------------
+[2026-03-17 00:03:40] [INFO] [arr_suite.sh] URL:        http://192.168.1.176:9696
+[2026-03-17 00:03:40] [INFO] [arr_suite.sh] Datos:      /var/lib/prowlarr
+[2026-03-17 00:03:40] [INFO] [arr_suite.sh] ---------------------------------------------------
+ -> Procesando: Radarr
+[2026-03-17 00:03:40] [INFO] [arr_suite.sh] Radarr ya est√° instalado.
+[2026-03-17 00:03:40] [INFO] [arr_suite.sh] Saltando descarga (Modo Idempotente / No-Upgrade).
+[2026-03-17 00:03:40] [INFO] [utils.sh] Ejecutando: chown -R media:media /var/lib/radarr
+[2026-03-17 00:03:40] [INFO] [utils.sh] Ejecutando: chmod 775 /var/lib/radarr
+[2026-03-17 00:03:40] [INFO] [utils.sh] Ejecutando: tee /etc/systemd/system/radarr.service
+[Unit]
+Description=Radarr Daemon (Native)
+After=network.target
+
+[Service]
+User=media
+Group=media
+UMask=0002
+Type=simple
+ExecStart=/opt/Radarr/Radarr -nobrowser -data=/var/lib/radarr
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+# Security Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+[2026-03-17 00:03:40] [INFO] [utils.sh] Ejecutando: systemctl daemon-reload
+[2026-03-17 00:03:41] [INFO] [arr_suite.sh] Servicio radarr activo. Reiniciando para aplicar cambios...
+[2026-03-17 00:03:41] [INFO] [utils.sh] Ejecutando: systemctl restart radarr
+[2026-03-17 00:03:41] [INFO] [utils.sh] Esperando a que Radarr escuche en localhost:7878...
+[2026-03-17 00:03:43] [OK] [utils.sh] Radarr est√° operativo (localhost:7878).
+[2026-03-17 00:03:43] [OK] [arr_suite.sh] Radarr instalado y respondiendo.
+[2026-03-17 00:03:43] [INFO] [arr_suite.sh] ---------------------------------------------------
+[2026-03-17 00:03:43] [INFO] [arr_suite.sh] URL:        http://192.168.1.176:7878
+[2026-03-17 00:03:43] [INFO] [arr_suite.sh] Datos:      /var/lib/radarr
+[2026-03-17 00:03:43] [INFO] [arr_suite.sh] ---------------------------------------------------
+ -> Procesando: Lidarr
+[2026-03-17 00:03:43] [INFO] [arr_suite.sh] Lidarr ya est√° instalado.
+[2026-03-17 00:03:43] [INFO] [arr_suite.sh] Saltando descarga (Modo Idempotente / No-Upgrade).
+[2026-03-17 00:03:43] [INFO] [utils.sh] Ejecutando: chown -R media:media /var/lib/lidarr
+[2026-03-17 00:03:43] [INFO] [utils.sh] Ejecutando: chmod 775 /var/lib/lidarr
+[2026-03-17 00:03:43] [INFO] [utils.sh] Ejecutando: tee /etc/systemd/system/lidarr.service
+[Unit]
+Description=Lidarr Daemon (Native)
+After=network.target
+
+[Service]
+User=media
+Group=media
+UMask=0002
+Type=simple
+ExecStart=/opt/Lidarr/Lidarr -nobrowser -data=/var/lib/lidarr
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+# Security Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+[2026-03-17 00:03:43] [INFO] [utils.sh] Ejecutando: systemctl daemon-reload
+[2026-03-17 00:03:44] [INFO] [arr_suite.sh] Servicio lidarr activo. Reiniciando para aplicar cambios...
+[2026-03-17 00:03:44] [INFO] [utils.sh] Ejecutando: systemctl restart lidarr
+[2026-03-17 00:03:44] [INFO] [utils.sh] Esperando a que Lidarr escuche en localhost:8686...
+[2026-03-17 00:03:46] [OK] [utils.sh] Lidarr est√° operativo (localhost:8686).
+[2026-03-17 00:03:46] [OK] [arr_suite.sh] Lidarr instalado y respondiendo.
+[2026-03-17 00:03:46] [INFO] [arr_suite.sh] ---------------------------------------------------
+[2026-03-17 00:03:46] [INFO] [arr_suite.sh] URL:        http://192.168.1.176:8686
+[2026-03-17 00:03:46] [INFO] [arr_suite.sh] Datos:      /var/lib/lidarr
+[2026-03-17 00:03:46] [INFO] [arr_suite.sh] ---------------------------------------------------
+ -> Procesando: Readarr
+[2026-03-17 00:03:46] [INFO] [arr_suite.sh] Readarr ya est√° instalado.
+[2026-03-17 00:03:46] [INFO] [arr_suite.sh] Saltando descarga (Modo Idempotente / No-Upgrade).
+[2026-03-17 00:03:46] [INFO] [utils.sh] Ejecutando: chown -R media:media /var/lib/readarr
+[2026-03-17 00:03:46] [INFO] [utils.sh] Ejecutando: chmod 775 /var/lib/readarr
+[2026-03-17 00:03:46] [INFO] [utils.sh] Ejecutando: tee /etc/systemd/system/readarr.service
+[Unit]
+Description=Readarr Daemon (Native)
+After=network.target
+
+[Service]
+User=media
+Group=media
+UMask=0002
+Type=simple
+ExecStart=/opt/Readarr/Readarr -nobrowser -data=/var/lib/readarr
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+# Security Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+[2026-03-17 00:03:46] [INFO] [utils.sh] Ejecutando: systemctl daemon-reload
+[2026-03-17 00:03:46] [INFO] [arr_suite.sh] Servicio readarr activo. Reiniciando para aplicar cambios...
+[2026-03-17 00:03:46] [INFO] [utils.sh] Ejecutando: systemctl restart readarr
+[2026-03-17 00:03:46] [INFO] [utils.sh] Esperando a que Readarr escuche en localhost:8787...
+[2026-03-17 00:03:48] [OK] [utils.sh] Readarr est√° operativo (localhost:8787).
+[2026-03-17 00:03:48] [OK] [arr_suite.sh] Readarr instalado y respondiendo.
+[2026-03-17 00:03:48] [INFO] [arr_suite.sh] ---------------------------------------------------
+[2026-03-17 00:03:48] [INFO] [arr_suite.sh] URL:        http://192.168.1.176:8787
+[2026-03-17 00:03:48] [INFO] [arr_suite.sh] Datos:      /var/lib/readarr
+[2026-03-17 00:03:48] [INFO] [arr_suite.sh] ---------------------------------------------------
+ -> Procesando: Whisparr
+[2026-03-17 00:03:49] [INFO] [arr_suite.sh] Whisparr ya est√° instalado.
+[2026-03-17 00:03:49] [INFO] [arr_suite.sh] Saltando descarga (Modo Idempotente / No-Upgrade).
+[2026-03-17 00:03:49] [INFO] [utils.sh] Ejecutando: chown -R media:media /var/lib/whisparr
+[2026-03-17 00:03:49] [INFO] [utils.sh] Ejecutando: chmod 775 /var/lib/whisparr
+[2026-03-17 00:03:49] [INFO] [utils.sh] Ejecutando: tee /etc/systemd/system/whisparr.service
+[Unit]
+Description=Whisparr Daemon (Native)
+After=network.target
+
+[Service]
+User=media
+Group=media
+UMask=0002
+Type=simple
+ExecStart=/opt/Whisparr/Whisparr -nobrowser -data=/var/lib/whisparr
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+# Security Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+[2026-03-17 00:03:49] [INFO] [utils.sh] Ejecutando: systemctl daemon-reload
+[2026-03-17 00:03:49] [INFO] [arr_suite.sh] Servicio whisparr activo. Reiniciando para aplicar cambios...
+[2026-03-17 00:03:49] [INFO] [utils.sh] Ejecutando: systemctl restart whisparr
+[2026-03-17 00:03:53] [INFO] [utils.sh] Esperando a que Whisparr escuche en localhost:6969...
+[2026-03-17 00:03:55] [OK] [utils.sh] Whisparr est√° operativo (localhost:6969).
+[2026-03-17 00:03:55] [OK] [arr_suite.sh] Whisparr instalado y respondiendo.
+[2026-03-17 00:03:55] [INFO] [arr_suite.sh] ---------------------------------------------------
+[2026-03-17 00:03:55] [INFO] [arr_suite.sh] URL:        http://192.168.1.176:6969
+[2026-03-17 00:03:55] [INFO] [arr_suite.sh] Datos:      /var/lib/whisparr
+[2026-03-17 00:03:55] [INFO] [arr_suite.sh] ---------------------------------------------------
+--- Instalaci√≥n de Suite Completa Finalizada. ---
+[2026-03-17 00:03:55] [OK] [install.sh] Etapa 'arr_suite' completada.
+--- Etapa: sonarr ---
+[2026-03-17 00:03:55] [INFO] [install.sh] Script: scripts/30-services/sonarr.sh
+--- Instalaci√≥n de Sonarr (Nativo .NET) ---
+[2026-03-17 00:03:55] [INFO] [sonarr.sh] Verificando identidad del servicio (media)...
+[2026-03-17 00:03:55] [INFO] [sonarr.sh] Sonarr ya est√° instalado en /opt/Sonarr.
+[2026-03-17 00:03:55] [INFO] [sonarr.sh] Saltando descarga. Se verificar√°n permisos y servicio.
+[2026-03-17 00:03:55] [INFO] [sonarr.sh] Asegurando permisos en directorio de datos...
+[2026-03-17 00:03:55] [INFO] [utils.sh] Ejecutando: chown -R media:media /var/lib/sonarr
+[2026-03-17 00:03:55] [INFO] [utils.sh] Ejecutando: chmod 775 /var/lib/sonarr
+[2026-03-17 00:03:55] [INFO] [sonarr.sh] Configurando unidad Systemd...
+[2026-03-17 00:03:55] [INFO] [utils.sh] Ejecutando: tee /etc/systemd/system/sonarr.service
+[Unit]
+Description=Sonarr Daemon (v4 Native)
+After=network.target
+
+[Service]
+User=media
+Group=media
+UMask=0002
+Type=simple
+ExecStart=/opt/Sonarr/Sonarr -nobrowser -data=/var/lib/sonarr
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+# Hardening / Seguridad
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
+[2026-03-17 00:03:55] [INFO] [sonarr.sh] Gestionando servicio...
+[2026-03-17 00:03:55] [INFO] [utils.sh] Ejecutando: systemctl daemon-reload
+[2026-03-17 00:03:56] [INFO] [sonarr.sh] Reiniciando servicio para aplicar cambios...
+[2026-03-17 00:03:56] [INFO] [utils.sh] Ejecutando: systemctl restart sonarr
+[2026-03-17 00:03:56] [INFO] [sonarr.sh] Gestionando servicio...
+[2026-03-17 00:03:56] [INFO] [utils.sh] Ejecutando: systemctl daemon-reload
+[2026-03-17 00:03:56] [INFO] [sonarr.sh] Reiniciando servicio para aplicar cambios...
+[2026-03-17 00:03:56] [INFO] [utils.sh] Ejecutando: systemctl restart sonarr
+[2026-03-17 00:03:56] [INFO] [utils.sh] Esperando a que Sonarr escuche en localhost:8989...
+[2026-03-17 00:03:58] [OK] [utils.sh] Sonarr est√° operativo (localhost:8989).
+[2026-03-17 00:03:58] [OK] [sonarr.sh] Sonarr instalado y respondiendo correctamente.
+[2026-03-17 00:03:58] [INFO] [sonarr.sh] ---------------------------------------------------
+[2026-03-17 00:03:58] [INFO] [sonarr.sh] URL:        http://192.168.1.176:8989
+[2026-03-17 00:03:58] [INFO] [sonarr.sh] Binarios:   /opt/Sonarr
+[2026-03-17 00:03:58] [INFO] [sonarr.sh] Datos:      /var/lib/sonarr
+[2026-03-17 00:03:58] [INFO] [sonarr.sh] ---------------------------------------------------
+[2026-03-17 00:03:58] [OK] [install.sh] Etapa 'sonarr' completada.
+--- Etapa: bazarr ---
+[2026-03-17 00:03:58] [INFO] [install.sh] Script: scripts/30-services/bazarr.sh
+--- Instalaci√≥n de Gestor de Subt√≠tulos (Bazarr) ---
+[2026-03-17 00:03:59] [INFO] [bazarr.sh] Verificando usuario de servicio (media)...
+[2026-03-17 00:03:59] [INFO] [bazarr.sh] Bazarr ya est√° instalado en /opt/Bazarr.
+[2026-03-17 00:03:59] [INFO] [bazarr.sh] Saltando descarga (Modo No-Upgrade).
+[2026-03-17 00:03:59] [INFO] [bazarr.sh] Configurando entorno Python aislado (venv)...
+[2026-03-17 00:03:59] [INFO] [bazarr.sh] Instalando dependencias Python (requirements.txt)...
+[2026-03-17 00:03:59] [INFO] [utils.sh] Ejecutando: /opt/Bazarr/venv/bin/pip install --upgrade pip --quiet
+[2026-03-17 00:04:00] [INFO] [utils.sh] Ejecutando: /opt/Bazarr/venv/bin/pip install -r /opt/Bazarr/requirements.txt --quiet
+[2026-03-17 00:04:00] [INFO] [bazarr.sh] Ajustando permisos...
+[2026-03-17 00:04:00] [INFO] [utils.sh] Ejecutando: chown -R media:media /opt/Bazarr
+[2026-03-17 00:04:00] [INFO] [utils.sh] Ejecutando: chown -R media:media /var/lib/bazarr
+[2026-03-17 00:04:00] [INFO] [utils.sh] Ejecutando: chmod 775 /var/lib/bazarr
+[2026-03-17 00:04:00] [INFO] [bazarr.sh] Configurando servicio Systemd...
+[2026-03-17 00:04:00] [INFO] [utils.sh] Ejecutando: tee /etc/systemd/system/bazarr.service
+[Unit]
+Description=Bazarr Daemon (Native Python Venv)
+After=network.target
+
+[Service]
+User=media
+Group=media
+UMask=0002
+Type=simple
+# CR√çTICO: Usamos el Python del VENV, no el del sistema
+# --no-update: Delegamos las actualizaciones a este script, no al auto-update interno
+ExecStart=/opt/Bazarr/venv/bin/python /opt/Bazarr/bazarr.py --no-update --config /var/lib/bazarr
+TimeoutStopSec=20
+KillMode=process
+Restart=on-failure
+
+# Security Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+[2026-03-17 00:04:00] [INFO] [utils.sh] Ejecutando: systemctl daemon-reload
+[2026-03-17 00:04:00] [INFO] [bazarr.sh] Servicio ya activo.
+[2026-03-17 00:04:00] [OK] [bazarr.sh] Bazarr instalado correctamente.
+[2026-03-17 00:04:00] [INFO] [bazarr.sh] ---------------------------------------------------
+[2026-03-17 00:04:00] [INFO] [bazarr.sh] URL:        http://192.168.1.176:6767
+[2026-03-17 00:04:00] [INFO] [bazarr.sh] Entorno:    /opt/Bazarr/venv
+[2026-03-17 00:04:00] [INFO] [bazarr.sh] Config:     /var/lib/bazarr
+[2026-03-17 00:04:00] [INFO] [bazarr.sh] ---------------------------------------------------
+[2026-03-17 00:04:00] [OK] [install.sh] Etapa 'bazarr' completada.
+--- Etapa: calibre ---
+[2026-03-17 00:04:00] [INFO] [install.sh] Script: scripts/30-services/calibre.sh
+--- Instalaci√≥n de Servidor de eBooks (Calibre) ---
+[2026-03-17 00:04:00] [INFO] [calibre.sh] Configurando identidad del servicio...
+[2026-03-17 00:04:00] [INFO] [calibre.sh] Calibre ya est√° instalado en /opt/calibre/calibre. Saltando descarga.
+[2026-03-17 00:04:01] [INFO] [calibre.sh] Configurando biblioteca en: /media/WDElements/Libros
+[2026-03-17 00:04:01] [INFO] [utils.sh] Asignando propietario a la biblioteca
+[2026-03-17 00:12:33] [INFO] [utils.sh] Ajustando permisos 775
+[2026-03-17 00:12:36] [INFO] [utils.sh] Activando SetGID para herencia de grupo
+[2026-03-17 00:12:36] [INFO] [calibre.sh] Configurando unidad de servicio...
+[2026-03-17 00:12:36] [OK] [calibre.sh] Archivo .service generado correctamente.
+[2026-03-17 00:12:36] [INFO] [utils.sh] Recargando demonios de systemd
+[2026-03-17 00:12:37] [INFO] [utils.sh] Habilitando e iniciando calibre-server
+Created symlink '/etc/systemd/system/multi-user.target.wants/calibre-server.service' ‚Üí '/etc/systemd/system/calibre-server.service'.
+[2026-03-17 00:12:37] [OK] [calibre.sh] ¬°Calibre Server est√° operativo!
+[2026-03-17 00:12:37] [INFO] [calibre.sh] ---------------------------------------------------
+[2026-03-17 00:12:37] [INFO] [calibre.sh] URL Acceso:  http://192.168.1.176:8080
+[2026-03-17 00:12:37] [INFO] [calibre.sh] Biblioteca:  /media/WDElements/Libros
+[2026-03-17 00:12:37] [INFO] [calibre.sh] Binarios en: /opt/calibre/calibre
+[2026-03-17 00:12:37] [INFO] [calibre.sh] ---------------------------------------------------
+[2026-03-17 00:12:37] [OK] [install.sh] Etapa 'calibre' completada.
+--- Etapa: plex ---
+[2026-03-17 00:12:37] [INFO] [install.sh] Script: scripts/30-services/plex.sh
+--- Instalaci√≥n de Servidor Multimedia (Plex) ---
+[2026-03-17 00:12:37] [INFO] [utils.sh] Actualizando √≠ndices de APT (Lazy Update)...
+[2026-03-17 00:12:37] [INFO] [utils.sh] Ejecutando: apt-get update -qq
+[2026-03-17 00:12:39] [INFO] [utils.sh] Instalando dependencia: apt-transport-https...
+[2026-03-17 00:12:39] [INFO] [utils.sh] Instalaci√≥n de apt-transport-https
+Selecting previously unselected package apt-transport-https.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 145764 files and directories currently installed.)
+Preparing to unpack .../apt-transport-https_3.0.3_all.deb ...
+Unpacking apt-transport-https (3.0.3) ...
+Setting up apt-transport-https (3.0.3) ...
+[2026-03-17 00:12:42] [INFO] [plex.sh] Configurando repositorio oficial de Plex...
+[2026-03-17 00:12:42] [INFO] [utils.sh] Ejecutando: tee /usr/share/keyrings/plexmediaserver.gpg
+ôU- ”[·1≈∞ épìX JÖxnÒñÔêÜ˛q≥√?Ñ+œÏ?Ï+≤∏©büÑ∫`åMn˜+¨Yvñ7ë'¥ªB$L¨F1R≠=vip{| Û†E°„‚öhEŒ∞¸´ªÈrú/–t÷Gs=ø	ÏÚ KÂñÌÜ‡#f¸y™H‘ÙMT÷Sûj{+%Äå[ƒÈ°Ã3»≤Ëóö˘“√ÃÁ≤I˜Tèﬂ$3ã/úeRd¶d]Çû∞~≤ Î‘èH,bb◊ç;:Ω%ñ¬ÑdD~≈ªÒ;·p |!"§à»‰FõïÌæÌTæ◊˘¥m≠*ÁÓ@≠¿ˇk‹€îˆ#Í¸ ~®5 q˙/—⁄Z∞ß±*¨Á›≠Ì⁄+õsÉH≠∂à5˛‰Öö·”éqØ<ePj≥Fsøtá:Â±Ó»Ò›µÈ>]œ˚µVykÌè/›^ÛË_ÿ=3¥z&¥ÕbRù∞Î}X^·≥ó  j˘¨êO•œΩÓ–≥6b3‘Ã’RπFΩ›!Y@)G¬Ò	WT€©ÓÅÙM≈~ÅæÓfπ´ﬂ
+´µMÒ]cöù©çıÿÿ‰fÚ2&âuq’-as&º4ü%√«gÉµÍ6ê¬Æ©*1Û–Ã#Î·ñi≠ÑÃ±ŒöÛñÇ0 ·Ú∫«Tˇ
+∏'XÄ”˘!cÌLÿùƒ«&ˇÙa  ¥	Plex Inc.â7 !U-		
+Ä 
+	ó <{:‹ßùê/ ±%c0˜GR©?NCn¯*®H	≥√à¨éˇöo*˛ÙäÀK©y√ñÅNnã1*ñ¥ja”˙e®âBYì˘Ÿ˘sπlRÑ·®Æu8˜5Ñ1XDÅ¸
+L	O0A±p˝…èœnÎ1ÌÅ-¿Ó±!L¸Z.œ[û°d^|◊9	óïx{k ‰óﬁV∞qcæ69ñ$6∂û-ÉMrŸ@È˝_∆…ªπ‹5_≥F∞K”H·*Q)÷Ñ[“«”~O@nÌÖ±)\WÕSp◊;aa*éÔMCΩ"›KFéU„1¥˙uXË‡¿kÙk…»áCá◊≤.YªÓAøµº«?ÀçsbrÓi¿–ÑÚÅáõ@>$Ø≥πqö∆î%*^<(¨˜smπRFuf‘zΩ¸∫ÎMwﬂì‘%.åﬁ/¶_Ωèûl?&ã(«Ë∏Îü"1[ÆQ◊P‹ñÉª8∏zÀÄ£Œ∞;¨åÒO„.¥]z¶Ÿ,“∏˝õsåhlSüñZn$î◊-¿∏ï≥£`=‹Ññ·ÇQ–‚πeÃ/€°õS
+~rlÉ-˘[›:¸….F√jˆ5(L÷‡˛ª’UË2ÛÜ3YæD!go≠ZÕ√©/‚Ï|ãﬂ„úéû”ß°é‘´˚¯ÖÛ°˜[’À£  ªb}bò@2êi√^¨/e˚·≥Ó•ÿÉË;±b+πU- ”C8ÕâjrGÈƒ-–P9[˜|æ	[ŸUGcÄo|gÉÍ&òø;h ÅñŒñ⁄Åˆ9qwLçYfSÊ%ÊöÁ†n–æÀô^–¡P_πawÉı≤·e4äJ≈«>Ÿ∏Ø√•#ß>»’;≈5A2¥§‘TjDí˙PdÖ„:¯/Ø7ï‰˜æ§;8íO[Fë√ﬂµRÖÑ8¯°«IU¸î≤¢x∫PM√∏]^œC’Ù≠úNË«˛=g¢DÛTæ.D∏”a˝≈«^bûˇá¶D2Œ)ËHTlÉº·Å[u≠XÙé€c˝±qÄ^!—–0+[!Ûvœ∫Øùïµ¬◊IFŸîwÜ#:*>¢∆åg<º • Ü∏•∑!xGHc
+7áÌ±#°	^Æ∞ûXÔ™r◊Òâ"#Œ¡^bò£yXπ:…%ÂCZË;{œ—aÚ€=9‹¬Ngqcó ÷;„f¥Ù™°èß¡Üæ‡¢E†03˝8cwÏK∆5(;êúC—Æz3gÓ—ŒçHÿÖ±zp õha⁄c–ª¢ıŒ™;¡!œ‚-9#∏ÄÂAÊM/‚o…ÜTNrdö5Qh‹d ”?ÿêb“Ó3ªb^7¨Z™≈Ò÷ú&–ƒ§Î´ÃŸDﬁƒÁG2éHîâàË»ËÑ îÆ>≥'Â*˚D©≠¿⁄QÀk  â 	U- 
+	ó <{:‹ßùµ: ¡|òÈûmÂL 8W‡ .ú‡
+ívÓE∫ãp{ÄÄù''?—V¥ÈOêzèÎ∏Ù¥ˆz"” 
+⁄O¡∞©—ç6Ü?D¸Âú.tB’N◊Ÿ°dÉÑ±RªØ»õ≠°“•‹Jü-∞áñ?Ä"|B˜˚ú»π©ë~jòÄ˛b!'‹lPƒ.ÊıÍ4¬zµnÆFı.T±•‚ı¿J‹f'Ëëy˛–Á¶"æ†A∏/vCHÌZ¢˚äÛ4È∫Úº˝‰ÓÙókEöV!ekI2°ÊZ∂?ÏﬁˇÌ7Å^πóºÂﬁgv®∂∫;ÀÛ
+’´•Z5Z”cœI)";˚X“‚AUò&Ãœ¥=%ˇÃ±ƒÿOÖÌ≠gÃH‡sºï÷.^Ú‘ÚÖt’ñ'KxöåGÆÁ|›®ÎoQÛz_4≥"0]Tºﬁ.Pû
+d&„¯( óåS˛Wœ’L}æ◊¸‹K§≥™¯ÊNƒò‚t|(D≥Ö˜µØ=ƒıÄOÜÃH"®º√~üÄ7œˇ¨ezÉ≈µO;ù òe‡ ·SèÆ¡˚»FÔZ;Z‘ºŒ@˛BØe∫ÃîºUå◊Ù‰3ïîJáª(lÊxˇœ9ˆ’i‘VMπYå©v¡}C∂ªÃa∂ZÊ—hB`ƒé¥A?-≤ÎpÉéhl¡@ô◊@CG¯ˆ¿;Á˙ﬁ©’?Hi•áù8[2026-03-17 00:12:42] [INFO] [utils.sh] Ejecutando: tee /etc/apt/sources.list.d/plexmediaserver.list
+deb [signed-by=/usr/share/keyrings/plexmediaserver.gpg] https://downloads.plex.tv/repo/deb public main
+[2026-03-17 00:12:42] [INFO] [utils.sh] Actualizando repositorios
+W: OpenPGP signature verification failed: https://downloads.plex.tv/repo/deb public InRelease: Sub-process /usr/bin/sqv returned an error code (1), error message is: Signing key on CD665CBA0E2F88B7373F7CB997203C7B3ADCA79D is not bound:            No binding signature at time 2025-09-22T18:33:03Z   because: Policy rejected non-revocation signature (PositiveCertification) requiring second pre-image resistance   because: SHA1 is not considered secure since 2026-02-01T00:00:00Z
+E: The repository 'https://downloads.plex.tv/repo/deb public InRelease' is not signed.
+[2026-03-17 00:12:43] [ERROR] [utils.sh] Fallo (Exit 100): apt-get update -qq
+[2026-03-17 00:12:43] [ERROR] [install.sh] Fallo cr√≠tico en etapa 'plex' (exit code: 100).
+[2026-03-17 00:12:43] [ERROR] [install.sh] Script: scripts/30-services/plex.sh
+[2026-03-17 00:12:43] [ERROR] [install.sh] Consulta el log: /opt/confiraspa/logs/install_20260317_000308.log
