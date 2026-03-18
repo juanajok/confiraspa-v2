@@ -1,41 +1,41 @@
 {
   "radarr": {
-      "backup_dir": "/media/Backup/radarr/scheduled",
+      "backup_dir": "/media/Backup/radarr",
       "backup_ext": ".zip",
       "restore_dir": "/var/lib/radarr",
       "files_to_restore": ["radarr.db", "config.xml"],
       "file_permissions": { "radarr.db": "775", "config.xml": "775" }
   },
   "sonarr": {
-      "backup_dir": "/media/Backup/sonarr/scheduled",
+      "backup_dir": "/media/Backup/sonarr",
       "backup_ext": ".zip",
       "restore_dir": "/var/lib/sonarr",
       "files_to_restore":["sonarr.db", "config.xml"],
       "file_permissions": { "sonarr.db": "775", "config.xml": "775" }
   },
   "readarr": {
-      "backup_dir": "/media/Backup/readarr/scheduled",
+      "backup_dir": "/media/Backup/readarr",
       "backup_ext": ".zip",
       "restore_dir": "/var/lib/readarr",
       "files_to_restore": ["readarr.db", "config.xml"],
       "file_permissions": { "readarr.db": "775", "config.xml": "775" }
   },
   "lidarr": {
-      "backup_dir": "/media/Backup/lidarr/scheduled",
+      "backup_dir": "/media/Backup/lidarr",
       "backup_ext": ".zip",
       "restore_dir": "/var/lib/lidarr",
       "files_to_restore": ["lidarr.db", "config.xml"],
       "file_permissions": { "lidarr.db": "775", "config.xml": "775" }
   },
   "prowlarr": {
-      "backup_dir": "/media/Backup/prowlarr/scheduled",
+      "backup_dir": "/media/Backup/prowlarr",
       "backup_ext": ".zip",
       "restore_dir": "/var/lib/prowlarr",
       "files_to_restore":["prowlarr.db", "config.xml"],
       "file_permissions": { "prowlarr.db": "775", "config.xml": "775" }
   },
   "whisparr": {
-      "backup_dir": "/media/Backup/whisparr/scheduled",
+      "backup_dir": "/media/Backup/whisparr",
       "backup_ext": ".zip",
       "restore_dir": "/var/lib/whisparr",
       "files_to_restore": ["whisparr2.db", "config.xml"],
