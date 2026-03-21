@@ -28,6 +28,11 @@ fi
 source "${REPO_ROOT}/lib/utils.sh"
 source "${REPO_ROOT}/lib/validators.sh"
 
+# Cargar .env si no estamos bajo install.sh (ej: --only samba)
+if [[ -f "${REPO_ROOT}/.env" ]]; then
+    source "${REPO_ROOT}/.env"
+fi
+
 # ===========================================================================
 # CONSTANTES
 # ===========================================================================
@@ -41,7 +46,7 @@ readonly SAMBA_WORKGROUP="${SMB_WORKGROUP:-WORKGROUP}"
 # Rutas de los shares (del .env)
 readonly SHARE_LIBRARY="${PATH_LIBRARY:-/media/WDElements}"
 readonly SHARE_BACKUP="${PATH_BACKUP:-/media/Backup}"
-readonly SHARE_DOWNLOADS="${DIR_TORRENTS:-/media/DiscoDuro/completo}"
+readonly SHARE_DOWNLOADS="${DIR_TORRENTS:-/media/DiscoDuro/completos}"
 
 # ===========================================================================
 # FUNCIONES LOCALES

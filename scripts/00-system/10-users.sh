@@ -11,6 +11,11 @@ if [ -z "${REPO_ROOT:-}" ]; then
 fi
 source "$REPO_ROOT/lib/utils.sh"
 source "$REPO_ROOT/lib/validators.sh"
+
+# Cargar .env si no estamos bajo install.sh (ej: --only 10-users)
+if [[ -f "$REPO_ROOT/.env" ]]; then
+    source "$REPO_ROOT/.env"
+fi
 # --------------------------
 
 log_section "Configuración de Usuarios y Grupos"

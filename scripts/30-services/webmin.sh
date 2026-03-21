@@ -26,6 +26,11 @@ fi
 source "${REPO_ROOT}/lib/utils.sh"
 source "${REPO_ROOT}/lib/validators.sh"
 
+# Cargar .env si no estamos bajo install.sh (ej: --only webmin)
+if [[ -f "${REPO_ROOT}/.env" ]]; then
+    source "${REPO_ROOT}/.env"
+fi
+
 # ===========================================================================
 # CONSTANTES
 # ===========================================================================

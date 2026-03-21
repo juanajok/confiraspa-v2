@@ -12,6 +12,11 @@ fi
 readonly REPO_ROOT
 source "$REPO_ROOT/lib/utils.sh"
 source "$REPO_ROOT/lib/validators.sh"
+
+# Cargar .env si no estamos bajo install.sh (ej: --only rsync)
+if [[ -f "$REPO_ROOT/.env" ]]; then
+    source "$REPO_ROOT/.env"
+fi
 # --------------------------
 
 # --- VARIABLES ---
@@ -27,7 +32,7 @@ export ARR_USER ARR_GROUP
 
 # Rutas NAS
 export PATH_BACKUP="${PATH_BACKUP:-/media/Backup}"
-export DIR_TORRENTS="${DIR_TORRENTS:-/media/DiscoDuro/completo}"
+export DIR_TORRENTS="${DIR_TORRENTS:-/media/DiscoDuro/completos}"
 
 log_section "Configuración de Sincronización (Rsync Server)"
 

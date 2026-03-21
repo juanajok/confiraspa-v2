@@ -33,6 +33,11 @@ source "${REPO_ROOT}/lib/colors.sh"
 source "${REPO_ROOT}/lib/utils.sh"
 source "${REPO_ROOT}/lib/validators.sh"
 
+# Cargar .env si no estamos bajo install.sh (ej: --only plex)
+if [[ -f "${REPO_ROOT}/.env" ]]; then
+    source "${REPO_ROOT}/.env"
+fi
+
 # =============================================================================
 # MANEJO DE ERRORES
 # =============================================================================
