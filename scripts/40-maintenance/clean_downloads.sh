@@ -146,16 +146,21 @@ find_duplicate() {
     local file_path="$1"
     local file_size="$2"
     local file_inode="$3"
-    shift 3
+    local file_dev="$4"
+    shift 4
     local -a target_dirs=("$@")
 
-    local lib_dir candidate candidate_inode
+    local lib_dir candidate candidate_inode candidate_dev
     for lib_dir in "${target_dirs[@]}"; do
         while IFS= read -r candidate; do
             candidate_inode=$(stat -c%i "${candidate}" 2>/dev/null) || continue
+            candidate_dev=$(stat -c%d "${candidate}" 2>/dev/null) || continue
 
-            # Mismo inodo = hardlink (comparación instantánea)
-            if [[ "${file_inode}" == "${candidate_inode}" ]]; then
+            # Mismo inodo EN EL MISMO DISPOSITIVO = hardlink (comparación instantánea).
+            # El check de dispositivo es crítico: los inodos son únicos por filesystem,
+            # no globalmente. En discos distintos pueden coincidir por azar en ficheros
+            # completamente diferentes, causando un falso positivo y borrado incorrecto.
+            if [[ "${file_dev}" == "${candidate_dev}" && "${file_inode}" == "${candidate_inode}" ]]; then
                 return 0
             fi
 
@@ -216,7 +221,7 @@ run_deduplication() {
     log_info "Origen:   ${SOURCE_DIR}"
     log_info "Destinos: ${target_dirs[*]}"
 
-    local file_path basename ext file_size file_inode dir_path junk_count
+    local file_path basename ext file_size file_inode file_dev dir_path junk_count
     while IFS= read -r file_path; do
         basename="$(basename "${file_path}")"
 
@@ -233,9 +238,10 @@ run_deduplication() {
         # Obtener metadatos
         file_size=$(stat -c%s "${file_path}" 2>/dev/null) || continue
         file_inode=$(stat -c%i "${file_path}" 2>/dev/null) || continue
+        file_dev=$(stat -c%d "${file_path}" 2>/dev/null) || continue
 
         # Buscar duplicado en bibliotecas
-        if find_duplicate "${file_path}" "${file_size}" "${file_inode}" "${target_dirs[@]}"; then
+        if find_duplicate "${file_path}" "${file_size}" "${file_inode}" "${file_dev}" "${target_dirs[@]}"; then
             if [[ "${DRY_RUN}" == "true" ]]; then
                 log_warning "[DRY-RUN] Borraría: ${basename} ($(( file_size / 1024 / 1024 )) MB)"
             else
