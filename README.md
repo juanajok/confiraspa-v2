@@ -1,5 +1,4 @@
 
-
 # 🚀 Confiraspa: Framework de Aprovisionamiento para Raspberry Pi
 
 ![Bash](https://img.shields.io/badge/Language-Bash-4EAA25?style=flat-square&logo=gnu-bash)
@@ -7,141 +6,199 @@
 ![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-Stable-success?style=flat-square)
 
-**Confiraspa** es un conjunto orquestado de scripts de automatización diseñado para transformar una instalación limpia de Raspberry Pi OS (Bookworm/Bullseye) en un servidor doméstico de producción robusto, seguro y mantenible.
-
-A diferencia de los scripts tradicionales, Confiraspa aplica principios de **Ingeniería DevOps**: idempotencia, programación defensiva, gestión segura de secretos y logs estructurados.
+**Confiraspa** convierte una Raspberry Pi con Raspberry Pi OS recién instalado en un servidor doméstico completo: NAS, servidor multimedia, cliente torrent, backups automáticos en la nube y más. Solo tienes que configurar un archivo de texto y ejecutar un script.
 
 ---
 
-## ✨ Características Principales
+## ¿Qué hace exactamente?
 
-*   **🛡️ Seguridad Primero:** Gestión de secretos vía `.env` (no versionado), firewall, actualizaciones automáticas de seguridad y usuarios sin privilegios para servicios.
-*   **🔄 Idempotencia:** Puedes ejecutar el instalador tantas veces como quieras. Si algo ya está configurado, lo verifica y continúa sin romper nada.
-*   **📂 Gestión de Almacenamiento Avanzada:** Soporte nativo para múltiples discos duros, montaje automático (`fstab`) y gestión inteligente de permisos para la suite multimedia.
-*   **🎬 Suite Multimedia (*Arr):** Instalación automatizada de Sonarr, Radarr, Lidarr, Prowlarr, Transmission y Plex con versiones nativas (.NET) y permisos cruzados preconfigurados.
-*   **📝 Observabilidad:** Logs detallados de cada ejecución (`logs/install_YYYYMMDD.log`) y modo `--dry-run` para simular cambios antes de aplicarlos.
-*   **⚡ Modularidad:** Arquitectura basada en etapas (System -> Network -> Services).
+Al ejecutarlo, el sistema instala y configura automáticamente:
 
----
+| Servicio | Puerto | Para qué sirve |
+| :--- | :--- | :--- |
+| **Samba** | 445 | Carpetas compartidas accesibles desde Windows/Mac/Linux |
+| **Transmission** | 9091 | Cliente torrent con interfaz web |
+| **Sonarr** | 8989 | Descarga y organiza series automáticamente |
+| **Radarr** | 7878 | Descarga y organiza películas automáticamente |
+| **Lidarr** | 8686 | Descarga y organiza música automáticamente |
+| **Readarr** | 8787 | Descarga y organiza libros automáticamente |
+| **Prowlarr** | 9696 | Gestiona los indexadores para toda la suite Arr |
+| **Bazarr** | 6767 | Descarga subtítulos automáticamente |
+| **Plex** | 32400 | Servidor multimedia con apps para TV, móvil, etc. |
+| **Calibre** | 8083 | Biblioteca y servidor de e-books |
+| **aMule** | 4711 | Cliente P2P (red eDonkey) |
+| **Webmin** | 10000 | Panel de administración del sistema vía web |
+| **XRDP** | 3389 | Escritorio remoto compatible con Windows |
+| **VNC** | 5900 | Escritorio remoto alternativo |
 
-## 🏗️ Arquitectura del Proyecto
-
-El proyecto sigue una estructura jerárquica y ordenada:
-
-```text
-confiraspa/
-├── bootstrap.sh            # 🚀 Script de inicio (instala git, prepara entorno)
-├── install.sh              # 🧠 Orquestador principal
-├── .env                    # 🔐 Variables de entorno y secretos (NO VERSIONADO)
-├── configs/
-│   └── static/             # Definiciones JSON (mounts.json, apps.json)
-├── lib/
-│   ├── utils.sh            # Funciones core (log, execute_cmd)
-│   └── validators.sh       # Comprobaciones defensivas (root, deps, vars)
-├── scripts/
-│   ├── 00-system/          # Update, Users, Storage, Fstab
-│   ├── 10-network/         # Static IP, VPN, XRDP, VNC
-│   └── 30-services/        # Samba, Transmission, Suite *Arr, Plex
-└── logs/                   # Historial de ejecuciones
-```
+Además configura automáticamente:
+- Firewall UFW (solo acceso desde red local)
+- Actualizaciones de seguridad automáticas
+- Montaje de discos duros externos al arrancar
+- Backups diarios locales con rsync
+- Backups semanales en Google Drive con rclone
+- Rotación automática de backups (conserva los 5 más recientes por servicio)
+- Limpieza de descargas duplicadas
 
 ---
 
-## 🚀 Inicio Rápido
+## Requisitos
 
-### 1. Prerrequisitos
-*   Una Raspberry Pi 3, 4 o 5.
-*   Raspberry Pi OS (Lite o Desktop) recién instalado.
-*   Conexión a internet.
+- Raspberry Pi 3, 4 o 5
+- Raspberry Pi OS (Bookworm o Bullseye), Lite o Desktop
+- Un disco duro externo USB (recomendado, para la biblioteca multimedia y backups)
+- Conexión a internet
 
-### 2. Instalación
-Accede por SSH a tu Raspberry Pi y ejecuta:
+---
+
+## Puesta en marcha (primera vez)
+
+### Paso 1 — Clonar el repositorio en la Raspberry Pi
+
+Conéctate por SSH y ejecuta:
 
 ```bash
-# 1. Clonar el repositorio
 sudo apt update && sudo apt install -y git
-git clone https://github.com/juanajok/confiraspa.git /opt/confiraspa
-
-# 2. Entrar al directorio
+git clone https://github.com/juanajok/confiraspa-v2.git /opt/confiraspa
 cd /opt/confiraspa
+```
 
-# 3. Configurar el entorno (CRÍTICO)
-cp .env.example .env
-nano .env  # <--- Rellena tus contraseñas y UUIDs aquí
+### Paso 2 — Preparar el entorno
 
-# 4. Iniciar la magia
+```bash
 sudo ./bootstrap.sh
 ```
 
----
+Este script instala las dependencias mínimas (`jq`, `curl`), hace los scripts ejecutables y crea el archivo `.env` a partir de la plantilla.
 
-## ⚙️ Configuración (.env)
+### Paso 3 — Configurar el archivo `.env`
 
-El archivo `.env` es el corazón de la configuración. **Nunca lo subas a GitHub**.
-
-| Variable | Descripción | Ejemplo |
-| :--- | :--- | :--- |
-| `SYS_USER` | Usuario principal del sistema | `pi` |
-| `SYS_PASSWORD` | Contraseña para el usuario sistema | `TuPassSegura!` |
-| `EXTERNAL_DISK_UUID` | UUID del disco principal | `a1b2-c3d4...` |
-| `SMB_PASS` | Contraseña para compartir archivos (Samba) | `sambaSecret` |
-| `ARR_USER` | Usuario para servicios multimedia | `media` |
-| `DRY_RUN` | Modo simulación (`true`/`false`) | `false` |
-
-> 💡 **Tip:** Usa `lsblk -f` para obtener los UUIDs de tus discos duros.
-
----
-
-## 🛠️ Uso Avanzado
-
-El script `install.sh` permite parámetros para un control granular:
-
-### Modo Simulación (Dry Run)
-Muestra qué comandos se ejecutarían sin hacer cambios reales. Ideal para verificar antes de desplegar.
 ```bash
-sudo ./install.sh --dry-run
+nano .env
 ```
 
-### Ejecutar un solo módulo
-Si solo quieres reinstalar o arreglar un servicio específico (ej. Sonarr):
+Variables imprescindibles que debes rellenar:
+
+| Variable | Qué poner |
+| :--- | :--- |
+| `SYS_USER` | Tu usuario del sistema (normalmente `pi`) |
+| `SYS_PASSWORD` | Contraseña para ese usuario |
+| `HOSTNAME` | Nombre que quieres darle al servidor |
+| `TIMEZONE` | Tu zona horaria (ej. `Europe/Madrid`) |
+| `EXTERNAL_DISK_UUID` | UUID de tu disco duro externo |
+| `PATH_LIBRARY` | Punto de montaje para la biblioteca multimedia (ej. `/media/WDElements`) |
+| `PATH_DOWNLOADS` | Punto de montaje para descargas (ej. `/media/DiscoDuro`) |
+| `PATH_BACKUP` | Punto de montaje para backups (ej. `/media/Backup`) |
+| `SMB_PASS` | Contraseña para las carpetas compartidas Samba |
+| `TRANSMISSION_USER` / `TRANSMISSION_PASS` | Credenciales interfaz web Transmission |
+| `PLEX_CLAIM_TOKEN` | Token de Plex (obtenerlo en plex.tv/claim, opcional) |
+
+> **¿Cómo obtengo el UUID de mi disco?**
+> ```bash
+> lsblk -f
+> ```
+> Busca la columna `UUID` junto al nombre de tu disco (ej. `sda1`).
+
+### Paso 4 — Ejecutar el instalador
+
+```bash
+sudo ./install.sh
+```
+
+El proceso tarda entre 15 y 30 minutos dependiendo de la conexión. Al terminar, todos los servicios estarán activos y arrancando automáticamente con el sistema.
+
+Cada ejecución genera un log detallado en `logs/install_YYYYMMDD_HHMMSS.log`.
+
+---
+
+## Uso del día a día
+
+### Reinstalar o reparar un servicio concreto
+
+Si algo falla o quieres reinstalar solo un servicio:
+
 ```bash
 sudo ./install.sh --only sonarr
+sudo ./install.sh --only samba
+sudo ./install.sh --only cleanup_backups
 ```
-*(Nota: Esto ejecutará cualquier script que contenga "sonarr" en su nombre).*
 
-### Logs y Depuración
-Cada ejecución genera un log detallado en la carpeta `logs/`:
+### Simular sin hacer cambios reales
+
+Útil para verificar qué haría el script antes de aplicarlo:
+
 ```bash
-tail -f logs/install_20240101_120000.log
+sudo ./install.sh --dry-run
+sudo ./install.sh --dry-run --only radarr
+```
+
+### Ver los logs de mantenimiento automático
+
+Los trabajos programados escriben sus logs en `/var/log/`:
+
+```bash
+tail -f /var/log/backup_rsync.log      # Backup local diario
+tail -f /var/log/rclone_backup.log     # Backup nube (domingos)
+tail -f /var/log/cleanup_backups.log   # Rotación de backups
+tail -f /var/log/clean_downloads.log   # Limpieza de descargas
+tail -f /var/log/auto_update.log       # Actualizaciones del sistema
 ```
 
 ---
 
-## 📦 Servicios Incluidos
+## Mantenimiento automático (cron)
 
-| Servicio | Puerto | Descripción |
+Una vez instalado, el sistema se mantiene solo según este calendario:
+
+| Frecuencia | Hora | Tarea |
 | :--- | :--- | :--- |
-| **Samba** | 445 | Compartición de archivos en red local. |
-| **XRDP** | 3389 | Escritorio remoto compatible con Windows. |
-| **RealVNC** | 5900 | Escritorio remoto (incluso modo Headless). |
-| **Transmission** | 9091 | Cliente Torrent ligero. |
-| **Sonarr** | 8989 | Gestión automática de Series. |
-| **Radarr** | 7878 | Gestión automática de Películas. |
-| **Lidarr** | 8686 | Gestión automática de Música. |
-| **Prowlarr** | 9696 | Gestión de indexadores Torrent. |
-| **Plex** | 32400 | Servidor multimedia. |
-| **Webmin** | 10000 | Administración del sistema vía web. |
+| Diario | 04:00 | Backup local a disco externo (rsync) |
+| Diario | 05:30 | Limpieza de descargas duplicadas |
+| Diario | 06:00 | Actualizaciones de seguridad del sistema |
+| Lunes | 03:00 | Corrección automática de permisos |
+| Domingos | 04:30 | Rotación de backups (conserva los 5 más recientes) |
+| Domingos | 05:00 | Backup a Google Drive (rclone) |
 
 ---
 
-## 🤝 Contribución
+## Estructura del proyecto
 
-Las Pull Requests son bienvenidas. Por favor, sigue estos estándares:
-1.  Usa la "Cabecera Universal" en los nuevos scripts.
-2.  No hardcodees rutas ni contraseñas; usa variables de `$REPO_ROOT` y `.env`.
-3.  Usa `log_info`, `log_error` y `execute_cmd` para mantener la consistencia en los logs.
+```
+confiraspa/
+├── bootstrap.sh              # Primer arranque: instala dependencias, crea .env
+├── install.sh                # Orquestador principal
+├── .env                      # Tus secretos y rutas (NO se sube a GitHub)
+├── .env.example              # Plantilla de configuración
+├── lib/
+│   ├── utils.sh              # Logging, execute_cmd, ensure_package, etc.
+│   └── validators.sh         # Validaciones defensivas
+├── configs/static/
+│   ├── mounts.json           # Definición de discos a montar
+│   ├── retention.json        # Política de retención de backups
+│   ├── cloud_backups.json    # Trabajos de backup a Google Drive
+│   ├── crontabs.txt          # Tareas programadas gestionadas por Confiraspa
+│   └── templates/            # Plantillas de configuración (smb.conf, etc.)
+├── scripts/
+│   ├── 00-system/            # Actualización, usuarios, almacenamiento
+│   ├── 10-network/           # Firewall, XRDP, VNC
+│   ├── 30-services/          # Todos los servicios (Samba, Arr, Plex, etc.)
+│   └── 40-maintenance/       # Backups, limpieza, permisos, rotación de logs
+└── logs/                     # Historial de ejecuciones del instalador
+```
 
-## 📄 Licencia
+---
+
+## Contribuir
+
+Al añadir nuevos scripts:
+1. Usa la cabecera universal (ver cualquier script existente como referencia).
+2. No hardcodees rutas ni contraseñas; usa `$REPO_ROOT` y variables de `.env`.
+3. Usa `execute_cmd` para todos los comandos que modifican el sistema (así funciona el dry-run).
+4. Usa `log_info`, `log_success`, `log_error` para los mensajes (nunca `echo` directo).
+
+---
+
+## Licencia
 
 Este proyecto está bajo la Licencia [MIT](LICENSE).
 
