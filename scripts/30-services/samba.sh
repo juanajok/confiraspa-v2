@@ -46,7 +46,7 @@ readonly SAMBA_WORKGROUP="${SMB_WORKGROUP:-WORKGROUP}"
 # Rutas de los shares (del .env)
 readonly SHARE_LIBRARY="${PATH_LIBRARY:-/media/WDElements}"
 readonly SHARE_BACKUP="${PATH_BACKUP:-/media/Backup}"
-readonly SHARE_DOWNLOADS="${DIR_TORRENTS:-/media/DiscoDuro/completos}"
+readonly SHARE_DOWNLOADS="${DIR_TORRENTS:-/media/DiscoDuro/torrents/completos}"
 
 # ===========================================================================
 # FUNCIONES LOCALES

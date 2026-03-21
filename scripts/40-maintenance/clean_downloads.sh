@@ -35,7 +35,7 @@ fi
 # ===========================================================================
 # CONSTANTES
 # ===========================================================================
-readonly SOURCE_DIR="${DIR_TORRENTS:-/media/DiscoDuro/completos}"
+readonly SOURCE_DIR="${DIR_TORRENTS:-/media/DiscoDuro/torrents/completos}"
 readonly LOCK_FILE="/run/lock/confiraspa_cleaner.lock"
 readonly MIN_AGE_MINUTES="+15"
 
