@@ -32,7 +32,7 @@ export ARR_USER ARR_GROUP
 
 # Rutas NAS
 export PATH_BACKUP="${PATH_BACKUP:-/media/Backup}"
-export DIR_TORRENTS="${DIR_TORRENTS:-/media/DiscoDuro/completos}"
+export DIR_TORRENTS="${DIR_TORRENTS:-/media/DiscoDuro/torrents/completos}"
 
 log_section "Configuración de Sincronización (Rsync Server)"
 

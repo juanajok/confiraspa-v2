@@ -55,8 +55,8 @@ TRANSMISSION_USER="${TRANSMISSION_USER:-admin}"
 TRANSMISSION_PEER_PORT="${TRANSMISSION_PEER_PORT:-51413}"
 
 # Definición de Directorios NAS (Vienen de 20-storage.sh / .env)
-# DIR_TORRENTS = /media/DiscoDuro/completos
-export DIR_TORRENTS="${DIR_TORRENTS:-/media/DiscoDuro/completos}"
+# DIR_TORRENTS = /media/DiscoDuro/torrents/completos
+export DIR_TORRENTS="${DIR_TORRENTS:-/media/DiscoDuro/torrents/completos}"
 # Incompleto al lado para evitar movimientos entre particiones
 export DIR_INCOMPLETE="$(dirname "$DIR_TORRENTS")/incompleto"
 
