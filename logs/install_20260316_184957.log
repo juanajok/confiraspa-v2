@@ -1,446 +1,0 @@
-
-=== Iniciando Confiraspa ===
-[2026-03-16 18:49:57] [INFO] [install.sh] Repositorio:  /opt/confiraspa
-[2026-03-16 18:49:57] [INFO] [install.sh] IP detectada: 192.168.1.176
-[2026-03-16 18:49:57] [INFO] [install.sh] Modo dry-run: false
-[2026-03-16 18:49:57] [INFO] [install.sh] Log de sesión: /opt/confiraspa/logs/install_20260316_184957.log
---- Etapa: 00-update ---
-[2026-03-16 18:49:57] [INFO] [install.sh] Script: scripts/00-system/00-update.sh
---- Actualización del Sistema y Parches de Seguridad ---
-[2026-03-16 18:49:57] [INFO] [00-update.sh] Actualizando repositorios y paquetes del sistema...
-[2026-03-16 18:49:57] [INFO] [utils.sh] Actualizando lista de paquetes
-[2026-03-16 18:49:59] [INFO] [utils.sh] Aplicando actualizaciones pendientes
-Preconfiguring packages ...
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 144932 files and directories currently installed.)
-Preparing to unpack .../libc6-dev_2.41-12+rpt1+deb13u2_arm64.deb ...
-Unpacking libc6-dev:arm64 (2.41-12+rpt1+deb13u2) over (2.41-12+rpt1+deb13u1) ...
-Preparing to unpack .../libc-dev-bin_2.41-12+rpt1+deb13u2_arm64.deb ...
-Unpacking libc-dev-bin (2.41-12+rpt1+deb13u2) over (2.41-12+rpt1+deb13u1) ...
-Preparing to unpack .../libc6_2.41-12+rpt1+deb13u2_arm64.deb ...
-Unpacking libc6:arm64 (2.41-12+rpt1+deb13u2) over (2.41-12+rpt1+deb13u1) ...
-Setting up libc6:arm64 (2.41-12+rpt1+deb13u2) ...
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 144932 files and directories currently installed.)
-Preparing to unpack .../libc-bin_2.41-12+rpt1+deb13u2_arm64.deb ...
-Unpacking libc-bin (2.41-12+rpt1+deb13u2) over (2.41-12+rpt1+deb13u1) ...
-Setting up libc-bin (2.41-12+rpt1+deb13u2) ...
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 144932 files and directories currently installed.)
-Preparing to unpack .../openssl-provider-legacy_3.5.5-1~deb13u1+rpt1_arm64.deb ...
-Unpacking openssl-provider-legacy (3.5.5-1~deb13u1+rpt1) over (3.5.5-1~deb13u1) ...
-Setting up openssl-provider-legacy (3.5.5-1~deb13u1+rpt1) ...
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 144932 files and directories currently installed.)
-Preparing to unpack .../libssl3t64_3.5.5-1~deb13u1+rpt1_arm64.deb ...
-Unpacking libssl3t64:arm64 (3.5.5-1~deb13u1+rpt1) over (3.5.5-1~deb13u1) ...
-Setting up libssl3t64:arm64 (3.5.5-1~deb13u1+rpt1) ...
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 144932 files and directories currently installed.)
-Preparing to unpack .../libc-l10n_2.41-12+rpt1+deb13u2_all.deb ...
-Unpacking libc-l10n (2.41-12+rpt1+deb13u2) over (2.41-12+rpt1+deb13u1) ...
-Preparing to unpack .../locales_2.41-12+rpt1+deb13u2_all.deb ...
-Unpacking locales (2.41-12+rpt1+deb13u2) over (2.41-12+rpt1+deb13u1) ...
-Preparing to unpack .../firefox_148.0.2-1+rpt1_arm64.deb ...
-Unpacking firefox (148.0.2-1+rpt1) over (148.0-1+rpt1) ...
-Preparing to unpack .../openssl_3.5.5-1~deb13u1+rpt1_arm64.deb ...
-Unpacking openssl (3.5.5-1~deb13u1+rpt1) over (3.5.5-1~deb13u1) ...
-Setting up libc-l10n (2.41-12+rpt1+deb13u2) ...
-Setting up firefox (148.0.2-1+rpt1) ...
-Setting up locales (2.41-12+rpt1+deb13u2) ...
-Generating locales (this might take a while)...
-  en_GB.UTF-8... done
-Generation complete.
-Setting up libc-dev-bin (2.41-12+rpt1+deb13u2) ...
-Setting up openssl (3.5.5-1~deb13u1+rpt1) ...
-Setting up libc6-dev:arm64 (2.41-12+rpt1+deb13u2) ...
-Processing triggers for desktop-file-utils (0.28-1) ...
-Processing triggers for hicolor-icon-theme (0.18-2) ...
-Processing triggers for gnome-menus (3.36.0-3) ...
-Processing triggers for libc-bin (2.41-12+rpt1+deb13u2) ...
-Processing triggers for systemd (257.9-1~deb13u1) ...
-Processing triggers for man-db (2.13.1-1) ...
-Processing triggers for mailcap (3.74) ...
-[2026-03-16 18:50:29] [INFO] [utils.sh] Aplicando actualizaciones de distribución
-[2026-03-16 18:50:30] [INFO] [utils.sh] Eliminando dependencias huérfanas
-Reading package lists...
-Building dependency tree...
-Reading state information...
-0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
-[2026-03-16 18:50:32] [INFO] [utils.sh] Limpiando caché de apt
-[2026-03-16 18:50:32] [INFO] [00-update.sh] Configurando actualizaciones automáticas de seguridad...
-[2026-03-16 18:50:32] [INFO] [00-update.sh] Generando configuración en: /etc/apt/apt.conf.d/52confiraspa-unattended
-[2026-03-16 18:50:32] [INFO] [utils.sh] Ejecutando: tee /etc/apt/apt.conf.d/52confiraspa-unattended
-// Configuración Gestionada por Confiraspa
-// Sobrescribe valores por defecto.
-
-Unattended-Upgrade::Allowed-Origins {
-    "${distro_id}:${distro_codename}";
-    "${distro_id}:${distro_codename}-security";
-    "${distro_id}ESMApps:${distro_codename}-apps-security";
-    "${distro_id}ESM:${distro_codename}-infra-security";
-    "Raspbian:${distro_codename}";
-    "Raspberry Pi Foundation:${distro_codename}";
-};
-
-Unattended-Upgrade::Package-Blacklist {
-    // Agrega paquetes aquí si quieres evitar que se actualicen solos
-    // "docker-ce";
-};
-
-// Opciones de comportamiento
-Unattended-Upgrade::AutoFixInterruptedDpkg "true";
-Unattended-Upgrade::MinimalSteps "true";
-Unattended-Upgrade::InstallOnShutdown "false";
-Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
-Unattended-Upgrade::Remove-Unused-Dependencies "true";
-Unattended-Upgrade::Automatic-Reboot "false"; // Cambia a "true" si quieres reinicios a las 4am
-Unattended-Upgrade::Automatic-Reboot-Time "04:00";
-[2026-03-16 18:50:32] [INFO] [00-update.sh] Configurando frecuencia diaria en: /etc/apt/apt.conf.d/20auto-upgrades
-[2026-03-16 18:50:32] [INFO] [utils.sh] Ejecutando: tee /etc/apt/apt.conf.d/20auto-upgrades
-APT::Periodic::Update-Package-Lists "1";
-APT::Periodic::Download-Upgradeable-Packages "1";
-APT::Periodic::AutocleanInterval "7";
-APT::Periodic::Unattended-Upgrade "1";
-[2026-03-16 18:50:32] [INFO] [00-update.sh] Verificando configuración de unattended-upgrades...
-[2026-03-16 18:50:32] [INFO] [utils.sh] Test de configuración unattended-upgrades
-loading plugins from ['/etc/unattended-upgrades/plugins/', '/usr/share/unattended-upgrades/plugins']
-Checking if system is running on battery is skipped. Please install powermgmt-base package to check power status and skip installing updates when the system is running on battery.
-Starting unattended upgrades script
-Allowed origins are: o=Debian,a=trixie, o=Debian,a=trixie-security, o=DebianESMApps,a=trixie-apps-security, o=DebianESM,a=trixie-infra-security, o=Raspbian,a=trixie, o=Raspberry Pi Foundation,a=trixie, origin=Debian,codename=trixie,label=Debian, origin=Debian,codename=trixie,label=Debian-Security, origin=Debian,codename=trixie-security,label=Debian-Security
-Initial blacklist: 
-Initial whitelist (not strict): 
-Marking not allowed <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/archive.raspberrypi.com_debian_dists_trixie_main_binary-armhf_Packages'  a=stable,c=main,v=,o=Raspberry Pi Foundation,l=Raspberry Pi Foundation arch='armhf' site='archive.raspberrypi.com' IndexType='Debian Package Index' Size=1340081 ID:20> with -32768 pin
-Marking not allowed <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/archive.raspberrypi.com_debian_dists_trixie_main_binary-arm64_Packages'  a=stable,c=main,v=,o=Raspberry Pi Foundation,l=Raspberry Pi Foundation arch='arm64' site='archive.raspberrypi.com' IndexType='Debian Package Index' Size=1360938 ID:19> with -32768 pin
-Marking not allowed <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_i18n_Translation-en'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='' site='deb.debian.org' IndexType='Debian Translation Index' Size=13794 ID:14> with -32768 pin
-Marking not allowed <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_binary-armhf_Packages'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='armhf' site='deb.debian.org' IndexType='Debian Package Index' Size=25369 ID:13> with -32768 pin
-Marking not allowed <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_binary-arm64_Packages'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='arm64' site='deb.debian.org' IndexType='Debian Package Index' Size=26678 ID:12> with -32768 pin
-Applying pinning: PkgFilePin(id=20, priority=-32768)
-Applying pin -32768 to package_file: <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/archive.raspberrypi.com_debian_dists_trixie_main_binary-armhf_Packages'  a=stable,c=main,v=,o=Raspberry Pi Foundation,l=Raspberry Pi Foundation arch='armhf' site='archive.raspberrypi.com' IndexType='Debian Package Index' Size=1340081 ID:20>
-Applying pinning: PkgFilePin(id=19, priority=-32768)
-Applying pin -32768 to package_file: <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/archive.raspberrypi.com_debian_dists_trixie_main_binary-arm64_Packages'  a=stable,c=main,v=,o=Raspberry Pi Foundation,l=Raspberry Pi Foundation arch='arm64' site='archive.raspberrypi.com' IndexType='Debian Package Index' Size=1360938 ID:19>
-Applying pinning: PkgFilePin(id=14, priority=-32768)
-Applying pin -32768 to package_file: <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_i18n_Translation-en'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='' site='deb.debian.org' IndexType='Debian Translation Index' Size=13794 ID:14>
-Applying pinning: PkgFilePin(id=13, priority=-32768)
-Applying pin -32768 to package_file: <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_binary-armhf_Packages'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='armhf' site='deb.debian.org' IndexType='Debian Package Index' Size=25369 ID:13>
-Applying pinning: PkgFilePin(id=12, priority=-32768)
-Applying pin -32768 to package_file: <apt_pkg.PackageFile object: filename:'/var/lib/apt/lists/deb.debian.org_debian_dists_trixie-updates_main_binary-arm64_Packages'  a=stable-updates,c=main,v=13-updates,o=Debian,l=Debian arch='arm64' site='deb.debian.org' IndexType='Debian Package Index' Size=26678 ID:12>
-Using (^linux-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^kfreebsd-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^gnumach-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^.*-modules-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^.*-kernel-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^linux-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^kfreebsd-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^gnumach-.*-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^.*-modules-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$|^.*-kernel-[1-9][0-9]*\.[0-9]+\.[0-9]+-[0-9]+(-.+)?$) regexp to find kernel packages
-Using (^linux-.*-6\.12\.47\+rpt\-rpi\-2712$|^kfreebsd-.*-6\.12\.47\+rpt\-rpi\-2712$|^gnumach-.*-6\.12\.47\+rpt\-rpi\-2712$|^.*-modules-6\.12\.47\+rpt\-rpi\-2712$|^.*-kernel-6\.12\.47\+rpt\-rpi\-2712$|^linux-.*-6\.12\.47\+rpt\-rpi\-2712$|^kfreebsd-.*-6\.12\.47\+rpt\-rpi\-2712$|^gnumach-.*-6\.12\.47\+rpt\-rpi\-2712$|^.*-modules-6\.12\.47\+rpt\-rpi\-2712$|^.*-kernel-6\.12\.47\+rpt\-rpi\-2712$) regexp to find running kernel packages
-pkgs that look like they should be upgraded: 
-Fetched 0 B in 0s (0 B/s)                                                       
-fetch.run() result: 0
-Packages blacklist due to conffile prompts: []
-No packages found that can be upgraded unattended and no pending auto-removals
-The list of kept packages can't be calculated in dry-run mode.
-upgrade result: True No packages found that can be upgraded unattended and no pending auto-removals
-[2026-03-16 18:50:35] [OK] [00-update.sh] Sistema actualizado y actualizaciones automáticas configuradas.
-[2026-03-16 18:50:35] [OK] [install.sh] Etapa '00-update' completada.
---- Etapa: 10-users ---
-[2026-03-16 18:50:35] [INFO] [install.sh] Script: scripts/00-system/10-users.sh
---- Configuración de Usuarios y Grupos ---
-[2026-03-16 18:50:35] [INFO] [10-users.sh] Grupo 'media' ya existe.
-[2026-03-16 18:50:35] [INFO] [10-users.sh] El usuario 'pi' ya existe.
-[2026-03-16 18:50:35] [INFO] [10-users.sh] Actualizando contraseña para pi...
-[2026-03-16 18:50:35] [INFO] [utils.sh] Aplicando contraseña
-[2026-03-16 18:50:35] [INFO] [10-users.sh] Añadiendo 'pi' a grupos necesarios...
-[2026-03-16 18:50:35] [OK] [10-users.sh] Configuración de usuarios finalizada.
-[2026-03-16 18:50:35] [INFO] [10-users.sh] NOTA: Si has cambiado tus propios grupos, necesitarás cerrar sesión y volver a entrar.
-[2026-03-16 18:50:35] [OK] [install.sh] Etapa '10-users' completada.
---- Etapa: 20-storage ---
-[2026-03-16 18:50:35] [INFO] [install.sh] Script: scripts/00-system/20-storage.sh
---- Configuración de almacenamiento y permisos ---
-[2026-03-16 18:50:35] [INFO] [utils.sh] Asegurando directorio: /media/WDElements (root:root 0755)
-[2026-03-16 18:50:35] [INFO] [utils.sh] Asegurando directorio: /media/DiscoDuro (root:root 0755)
-[2026-03-16 18:50:35] [INFO] [utils.sh] Asegurando directorio: /media/Backup (root:root 0755)
-[2026-03-16 18:50:36] [INFO] [20-storage.sh] Backup de fstab: /etc/fstab.bak.20260316_185036
-[2026-03-16 18:50:36] [OK] [20-storage.sh] fstab actualizado.
-[2026-03-16 18:50:37] [INFO] [20-storage.sh] Configurando identidad del stack multimedia: media:media
-[2026-03-16 18:50:37] [INFO] [20-storage.sh] Grupo 'media' ya existe.
-[2026-03-16 18:50:37] [INFO] [20-storage.sh] Usuario 'media' ya existe.
-[2026-03-16 18:50:37] [INFO] [20-storage.sh] Creando estructura de directorios multimedia...
-[2026-03-16 18:50:37] [INFO] [utils.sh] Asegurando directorio: /media/WDElements (media:media 2775)
-[2026-03-16 18:50:37] [INFO] [utils.sh] Asegurando directorio: /media/DiscoDuro (media:media 2775)
-[2026-03-16 18:50:37] [INFO] [utils.sh] Asegurando directorio: /media/Backup (media:media 2775)
-[2026-03-16 18:50:37] [INFO] [utils.sh] Asegurando directorio: /media/WDElements/Series (media:media 2775)
-[2026-03-16 18:50:37] [INFO] [utils.sh] Asegurando directorio: /media/WDElements/Peliculas (media:media 2775)
-[2026-03-16 18:50:37] [INFO] [utils.sh] Asegurando directorio: /media/WDElements/Musica (media:media 2775)
-[2026-03-16 18:50:37] [INFO] [utils.sh] Asegurando directorio: /media/WDElements/Libros (media:media 2775)
-[2026-03-16 18:50:37] [INFO] [utils.sh] Asegurando directorio: /media/DiscoDuro/completo (media:media 2775)
-[2026-03-16 18:50:37] [OK] [20-storage.sh] Montaje activo: /media/WDElements
-[2026-03-16 18:50:37] [OK] [20-storage.sh] Montaje activo: /media/DiscoDuro
-[2026-03-16 18:50:37] [OK] [20-storage.sh] Montaje activo: /media/Backup
-[2026-03-16 18:50:37] [OK] [20-storage.sh] Almacenamiento y estructura de directorios configurados correctamente.
-[2026-03-16 18:50:37] [OK] [install.sh] Etapa '20-storage' completada.
-[2026-03-16 18:50:37] [WARN] [install.sh] Script opcional ausente, se omite: scripts/10-network/00-static-ip.sh
---- Etapa: firewall ---
-[2026-03-16 18:50:37] [INFO] [install.sh] Script: scripts/10-network/firewall.sh
-[2026-03-16 18:50:37] [INFO] [firewall.sh] Subred detectada: 192.168.1.176/24
---- Hardening de Red (Firewall UFW) ---
-[2026-03-16 18:50:37] [INFO] [firewall.sh] Estado previo: Reseteando reglas...
-[2026-03-16 18:50:37] [INFO] [utils.sh] Ejecutando: ufw --force reset > /dev/null
-[2026-03-16 18:50:38] [INFO] [firewall.sh] Política base: Cerrar todo, permitir salida.
-[2026-03-16 18:50:38] [INFO] [utils.sh] Ejecutando: ufw default deny incoming
-Default incoming policy changed to 'deny'
-(be sure to update your rules accordingly)
-[2026-03-16 18:50:38] [INFO] [utils.sh] Ejecutando: ufw default allow outgoing
-Default outgoing policy changed to 'allow'
-(be sure to update your rules accordingly)
- -> Zona de Administración (SSH)
-[2026-03-16 18:50:38] [INFO] [firewall.sh] Configurando SSH en puerto 22 (Restringido a LAN)...
-[2026-03-16 18:50:38] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 22 proto tcp comment 'SSH Admin (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:39] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 22 proto tcp comment 'SSH Admin (LAN)'
-Rules updated
-[2026-03-16 18:50:39] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 22 proto tcp comment 'SSH Admin (LAN)'
-Rules updated
- -> Zona Pública (P2P y Streaming)
-[2026-03-16 18:50:39] [INFO] [firewall.sh] Configurando P2P (Transmission Peers)...
-[2026-03-16 18:50:39] [INFO] [utils.sh] Ejecutando: ufw allow 51413/tcp comment 'Torrent Peer TCP'
-Rules updated
-Rules updated (v6)
-[2026-03-16 18:50:39] [INFO] [utils.sh] Ejecutando: ufw allow 51413/udp comment 'Torrent Peer UDP'
-Rules updated
-Rules updated (v6)
-[2026-03-16 18:50:39] [INFO] [firewall.sh] Configurando Plex Streaming...
-[2026-03-16 18:50:39] [INFO] [utils.sh] Ejecutando: ufw allow 32400/tcp comment 'Plex Main'
-Rules updated
-Rules updated (v6)
-[2026-03-16 18:50:40] [INFO] [firewall.sh] Configurando aMule...
-[2026-03-16 18:50:40] [INFO] [utils.sh] Ejecutando: ufw allow 4662/tcp comment 'eD2k TCP (Global)'
-Rules updated
-Rules updated (v6)
-[2026-03-16 18:50:40] [INFO] [utils.sh] Ejecutando: ufw allow 4672/udp comment 'Kademlia UDP (Global)'
-Rules updated
-Rules updated (v6)
- -> Zona Privada (Solo LAN/VPN)
-[2026-03-16 18:50:40] [INFO] [firewall.sh]   -> Configurando 10000/tcp para LAN (Webmin Admin)...
-[2026-03-16 18:50:40] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 10000 proto tcp comment 'Webmin Admin (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:40] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 10000 proto tcp comment 'Webmin Admin (LAN)'
-Rules updated
-[2026-03-16 18:50:40] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 10000 proto tcp comment 'Webmin Admin (LAN)'
-Rules updated
-[2026-03-16 18:50:40] [INFO] [firewall.sh]   -> Configurando Samba y Rsync (LAN)...
-[2026-03-16 18:50:40] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 137,138 proto udp comment 'Samba UDP (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:41] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 139,445 proto tcp comment 'Samba TCP (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:41] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 873 proto tcp comment 'Rsync Backup (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:41] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 137,138 proto udp comment 'Samba UDP (LAN)'
-Rules updated
-[2026-03-16 18:50:41] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 139,445 proto tcp comment 'Samba TCP (LAN)'
-Rules updated
-[2026-03-16 18:50:41] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 873 proto tcp comment 'Rsync Backup (LAN)'
-Rules updated
-[2026-03-16 18:50:42] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 137,138 proto udp comment 'Samba UDP (LAN)'
-Rules updated
-[2026-03-16 18:50:42] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 139,445 proto tcp comment 'Samba TCP (LAN)'
-Rules updated
-[2026-03-16 18:50:42] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 873 proto tcp comment 'Rsync Backup (LAN)'
-Rules updated
-[2026-03-16 18:50:42] [INFO] [firewall.sh]   -> Configurando 9091/tcp para LAN (Transmission Web UI)...
-[2026-03-16 18:50:42] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 9091 proto tcp comment 'Transmission Web UI (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:42] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 9091 proto tcp comment 'Transmission Web UI (LAN)'
-Rules updated
-[2026-03-16 18:50:42] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 9091 proto tcp comment 'Transmission Web UI (LAN)'
-Rules updated
-[2026-03-16 18:50:43] [INFO] [firewall.sh]   -> Configurando 4711/tcp para LAN (aMule Web UI)...
-[2026-03-16 18:50:43] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 4711 proto tcp comment 'aMule Web UI (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:43] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 4711 proto tcp comment 'aMule Web UI (LAN)'
-Rules updated
-[2026-03-16 18:50:43] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 4711 proto tcp comment 'aMule Web UI (LAN)'
-Rules updated
-[2026-03-16 18:50:43] [INFO] [firewall.sh]   -> Configurando 6767/tcp para LAN (Bazarr UI)...
-[2026-03-16 18:50:43] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 6767 proto tcp comment 'Bazarr UI (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:43] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 6767 proto tcp comment 'Bazarr UI (LAN)'
-Rules updated
-[2026-03-16 18:50:43] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 6767 proto tcp comment 'Bazarr UI (LAN)'
-Rules updated
-[2026-03-16 18:50:44] [INFO] [firewall.sh]   -> Configurando 8080/tcp para LAN (Calibre Server)...
-[2026-03-16 18:50:44] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 8080 proto tcp comment 'Calibre Server (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:44] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 8080 proto tcp comment 'Calibre Server (LAN)'
-Rules updated
-[2026-03-16 18:50:44] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 8080 proto tcp comment 'Calibre Server (LAN)'
-Rules updated
-[2026-03-16 18:50:44] [INFO] [firewall.sh]   -> Configurando 8989/tcp para LAN (Sonarr)...
-[2026-03-16 18:50:44] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 8989 proto tcp comment 'Sonarr (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:44] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 8989 proto tcp comment 'Sonarr (LAN)'
-Rules updated
-[2026-03-16 18:50:44] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 8989 proto tcp comment 'Sonarr (LAN)'
-Rules updated
-[2026-03-16 18:50:45] [INFO] [firewall.sh]   -> Configurando 7878/tcp para LAN (Radarr)...
-[2026-03-16 18:50:45] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 7878 proto tcp comment 'Radarr (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:45] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 7878 proto tcp comment 'Radarr (LAN)'
-Rules updated
-[2026-03-16 18:50:45] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 7878 proto tcp comment 'Radarr (LAN)'
-Rules updated
-[2026-03-16 18:50:45] [INFO] [firewall.sh]   -> Configurando 8686/tcp para LAN (Lidarr)...
-[2026-03-16 18:50:45] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 8686 proto tcp comment 'Lidarr (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:45] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 8686 proto tcp comment 'Lidarr (LAN)'
-Rules updated
-[2026-03-16 18:50:45] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 8686 proto tcp comment 'Lidarr (LAN)'
-Rules updated
-[2026-03-16 18:50:46] [INFO] [firewall.sh]   -> Configurando 8787/tcp para LAN (Readarr)...
-[2026-03-16 18:50:46] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 8787 proto tcp comment 'Readarr (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:46] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 8787 proto tcp comment 'Readarr (LAN)'
-Rules updated
-[2026-03-16 18:50:46] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 8787 proto tcp comment 'Readarr (LAN)'
-Rules updated
-[2026-03-16 18:50:46] [INFO] [firewall.sh]   -> Configurando 9696/tcp para LAN (Prowlarr)...
-[2026-03-16 18:50:46] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 9696 proto tcp comment 'Prowlarr (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:46] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 9696 proto tcp comment 'Prowlarr (LAN)'
-Rules updated
-[2026-03-16 18:50:46] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 9696 proto tcp comment 'Prowlarr (LAN)'
-Rules updated
-[2026-03-16 18:50:47] [INFO] [firewall.sh]   -> Configurando 6969/tcp para LAN (Whisparr)...
-[2026-03-16 18:50:47] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 6969 proto tcp comment 'Whisparr (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:47] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 6969 proto tcp comment 'Whisparr (LAN)'
-Rules updated
-[2026-03-16 18:50:47] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 6969 proto tcp comment 'Whisparr (LAN)'
-Rules updated
-[2026-03-16 18:50:47] [INFO] [firewall.sh]   -> Configurando 3389/tcp para LAN (XRDP)...
-[2026-03-16 18:50:47] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 3389 proto tcp comment 'XRDP (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:47] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 3389 proto tcp comment 'XRDP (LAN)'
-Rules updated
-[2026-03-16 18:50:48] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 3389 proto tcp comment 'XRDP (LAN)'
-Rules updated
-[2026-03-16 18:50:48] [INFO] [firewall.sh]   -> Configurando 5900/tcp para LAN (VNC)...
-[2026-03-16 18:50:48] [INFO] [utils.sh] Ejecutando: ufw allow from 192.168.1.176/24 to any port 5900 proto tcp comment 'VNC (LAN)'
-WARN: Rule changed after normalization
-Rules updated
-[2026-03-16 18:50:48] [INFO] [utils.sh] Ejecutando: ufw allow from 10.0.0.0/8 to any port 5900 proto tcp comment 'VNC (LAN)'
-Rules updated
-[2026-03-16 18:50:48] [INFO] [utils.sh] Ejecutando: ufw allow from 100.64.0.0/10 to any port 5900 proto tcp comment 'VNC (LAN)'
-Rules updated
- -> Activación
-[2026-03-16 18:50:48] [INFO] [utils.sh] Ejecutando: ufw logging low
-Logging enabled
-[2026-03-16 18:50:48] [WARN] [firewall.sh] IMPORTANTE: Si estás conectado por SSH desde fuera de tu red local, esta acción cortará la conexión.
-[2026-03-16 18:50:48] [INFO] [firewall.sh] Activando firewall...
-[2026-03-16 18:50:48] [INFO] [utils.sh] Ejecutando: ufw --force enable
-Firewall is active and enabled on system startup
-[2026-03-16 18:50:49] [INFO] [utils.sh] Ejecutando: ufw reload
-Firewall reloaded
-[2026-03-16 18:50:51] [OK] [firewall.sh] Firewall 'LAN-Hardened' activo.
-[2026-03-16 18:50:51] [INFO] [utils.sh] Ejecutando: ufw status numbered
-Status: active
-
-     To                         Action      From
-     --                         ------      ----
-[ 1] 22/tcp                     ALLOW IN    192.168.1.0/24             # SSH Admin (LAN)
-[ 2] 22/tcp                     ALLOW IN    10.0.0.0/8                 # SSH Admin (LAN)
-[ 3] 22/tcp                     ALLOW IN    100.64.0.0/10              # SSH Admin (LAN)
-[ 4] 51413/tcp                  ALLOW IN    Anywhere                   # Torrent Peer TCP
-[ 5] 51413/udp                  ALLOW IN    Anywhere                   # Torrent Peer UDP
-[ 6] 32400/tcp                  ALLOW IN    Anywhere                   # Plex Main
-[ 7] 4662/tcp                   ALLOW IN    Anywhere                   # eD2k TCP (Global)
-[ 8] 4672/udp                   ALLOW IN    Anywhere                   # Kademlia UDP (Global)
-[ 9] 10000/tcp                  ALLOW IN    192.168.1.0/24             # Webmin Admin (LAN)
-[10] 10000/tcp                  ALLOW IN    10.0.0.0/8                 # Webmin Admin (LAN)
-[11] 10000/tcp                  ALLOW IN    100.64.0.0/10              # Webmin Admin (LAN)
-[12] 137,138/udp                ALLOW IN    192.168.1.0/24             # Samba UDP (LAN)
-[13] 139,445/tcp                ALLOW IN    192.168.1.0/24             # Samba TCP (LAN)
-[14] 873/tcp                    ALLOW IN    192.168.1.0/24             # Rsync Backup (LAN)
-[15] 137,138/udp                ALLOW IN    10.0.0.0/8                 # Samba UDP (LAN)
-[16] 139,445/tcp                ALLOW IN    10.0.0.0/8                 # Samba TCP (LAN)
-[17] 873/tcp                    ALLOW IN    10.0.0.0/8                 # Rsync Backup (LAN)
-[18] 137,138/udp                ALLOW IN    100.64.0.0/10              # Samba UDP (LAN)
-[19] 139,445/tcp                ALLOW IN    100.64.0.0/10              # Samba TCP (LAN)
-[20] 873/tcp                    ALLOW IN    100.64.0.0/10              # Rsync Backup (LAN)
-[21] 9091/tcp                   ALLOW IN    192.168.1.0/24             # Transmission Web UI (LAN)
-[22] 9091/tcp                   ALLOW IN    10.0.0.0/8                 # Transmission Web UI (LAN)
-[23] 9091/tcp                   ALLOW IN    100.64.0.0/10              # Transmission Web UI (LAN)
-[24] 4711/tcp                   ALLOW IN    192.168.1.0/24             # aMule Web UI (LAN)
-[25] 4711/tcp                   ALLOW IN    10.0.0.0/8                 # aMule Web UI (LAN)
-[26] 4711/tcp                   ALLOW IN    100.64.0.0/10              # aMule Web UI (LAN)
-[27] 6767/tcp                   ALLOW IN    192.168.1.0/24             # Bazarr UI (LAN)
-[28] 6767/tcp                   ALLOW IN    10.0.0.0/8                 # Bazarr UI (LAN)
-[29] 6767/tcp                   ALLOW IN    100.64.0.0/10              # Bazarr UI (LAN)
-[30] 8080/tcp                   ALLOW IN    192.168.1.0/24             # Calibre Server (LAN)
-[31] 8080/tcp                   ALLOW IN    10.0.0.0/8                 # Calibre Server (LAN)
-[32] 8080/tcp                   ALLOW IN    100.64.0.0/10              # Calibre Server (LAN)
-[33] 8989/tcp                   ALLOW IN    192.168.1.0/24             # Sonarr (LAN)
-[34] 8989/tcp                   ALLOW IN    10.0.0.0/8                 # Sonarr (LAN)
-[35] 8989/tcp                   ALLOW IN    100.64.0.0/10              # Sonarr (LAN)
-[36] 7878/tcp                   ALLOW IN    192.168.1.0/24             # Radarr (LAN)
-[37] 7878/tcp                   ALLOW IN    10.0.0.0/8                 # Radarr (LAN)
-[38] 7878/tcp                   ALLOW IN    100.64.0.0/10              # Radarr (LAN)
-[39] 8686/tcp                   ALLOW IN    192.168.1.0/24             # Lidarr (LAN)
-[40] 8686/tcp                   ALLOW IN    10.0.0.0/8                 # Lidarr (LAN)
-[41] 8686/tcp                   ALLOW IN    100.64.0.0/10              # Lidarr (LAN)
-[42] 8787/tcp                   ALLOW IN    192.168.1.0/24             # Readarr (LAN)
-[43] 8787/tcp                   ALLOW IN    10.0.0.0/8                 # Readarr (LAN)
-[44] 8787/tcp                   ALLOW IN    100.64.0.0/10              # Readarr (LAN)
-[45] 9696/tcp                   ALLOW IN    192.168.1.0/24             # Prowlarr (LAN)
-[46] 9696/tcp                   ALLOW IN    10.0.0.0/8                 # Prowlarr (LAN)
-[47] 9696/tcp                   ALLOW IN    100.64.0.0/10              # Prowlarr (LAN)
-[48] 6969/tcp                   ALLOW IN    192.168.1.0/24             # Whisparr (LAN)
-[49] 6969/tcp                   ALLOW IN    10.0.0.0/8                 # Whisparr (LAN)
-[50] 6969/tcp                   ALLOW IN    100.64.0.0/10              # Whisparr (LAN)
-[51] 3389/tcp                   ALLOW IN    192.168.1.0/24             # XRDP (LAN)
-[52] 3389/tcp                   ALLOW IN    10.0.0.0/8                 # XRDP (LAN)
-[53] 3389/tcp                   ALLOW IN    100.64.0.0/10              # XRDP (LAN)
-[54] 5900/tcp                   ALLOW IN    192.168.1.0/24             # VNC (LAN)
-[55] 5900/tcp                   ALLOW IN    10.0.0.0/8                 # VNC (LAN)
-[56] 5900/tcp                   ALLOW IN    100.64.0.0/10              # VNC (LAN)
-[57] 51413/tcp (v6)             ALLOW IN    Anywhere (v6)              # Torrent Peer TCP
-[58] 51413/udp (v6)             ALLOW IN    Anywhere (v6)              # Torrent Peer UDP
-[59] 32400/tcp (v6)             ALLOW IN    Anywhere (v6)              # Plex Main
-[60] 4662/tcp (v6)              ALLOW IN    Anywhere (v6)              # eD2k TCP (Global)
-[61] 4672/udp (v6)              ALLOW IN    Anywhere (v6)              # Kademlia UDP (Global)
-
-[2026-03-16 18:50:51] [OK] [install.sh] Etapa 'firewall' completada.
---- Etapa: 10-xrdp ---
-[2026-03-16 18:50:51] [INFO] [install.sh] Script: scripts/10-network/10-xrdp.sh
---- Configuración de Acceso Remoto (XRDP) ---
-[2026-03-16 18:50:51] [OK] [10-xrdp.sh] XRDP ya está instalado y ejecutándose.
-[2026-03-16 18:50:51] [OK] [install.sh] Etapa '10-xrdp' completada.
---- Etapa: 20-vnc ---
-[2026-03-16 18:50:51] [INFO] [install.sh] Script: scripts/10-network/20-vnc.sh
---- Configuración de VNC (RealVNC) ---
-[2026-03-16 18:50:51] [INFO] [20-vnc.sh] Archivo de configuración detectado: /boot/firmware/config.txt
-[2026-03-16 18:50:51] [INFO] [20-vnc.sh] Configurando resolución forzada (720p) para modo sin monitor...
-[2026-03-16 18:50:51] [INFO] [20-vnc.sh] Gestionando servicio VNC...
-[2026-03-16 18:50:51] [OK] [20-vnc.sh] El servicio VNC ya está corriendo.
-[2026-03-16 18:50:51] [OK] [20-vnc.sh] VNC Configurado.
-[2026-03-16 18:50:51] [INFO] [20-vnc.sh] Resolución forzada: 1280x720 (Requiere reinicio para aplicar cambios de vídeo).
-[2026-03-16 18:50:51] [INFO] [20-vnc.sh] Conéctate a: 192.168.1.176:5900
-[2026-03-16 18:50:51] [OK] [install.sh] Etapa '20-vnc' completada.
---- Etapa: samba ---
-[2026-03-16 18:50:51] [INFO] [install.sh] Script: scripts/30-services/samba.sh
---- Configuración de Servidor NAS (Samba) ---
-[2026-03-16 18:50:51] [INFO] [samba.sh] Objetivo: Compartir recursos para el usuario 'pi'
-[2026-03-16 18:50:51] [INFO] [samba.sh] El usuario 'pi' ya pertenece al grupo 'media'.
-[2026-03-16 18:50:51] [INFO] [samba.sh] Renderizando nueva configuración de Samba...
-[2026-03-16 18:50:51] [INFO] [samba.sh] Validando sintaxis de la configuración...
-[2026-03-16 18:50:51] [INFO] [samba.sh] Backup creado en /etc/samba/smb.conf.bak.20260316_185051
-[2026-03-16 18:50:51] [INFO] [utils.sh] install -o root -g root -m 0644 /tmp/tmp.YDJlJOjIpd/smb.conf /etc/samba/smb.conf
-bash: line 1: Instalando: command not found
-[2026-03-16 18:50:51] [ERROR] [utils.sh] Fallo (Exit 127): Instalando nueva configuración smb.conf
-[2026-03-16 18:50:51] [ERROR] [install.sh] Fallo crítico en etapa 'samba' (exit code: 127).
-[2026-03-16 18:50:51] [ERROR] [install.sh] Script: scripts/30-services/samba.sh
-[2026-03-16 18:50:51] [ERROR] [install.sh] Consulta el log: /opt/confiraspa/logs/install_20260316_184957.log

@@ -1,9 +1,0 @@
-
-=== Iniciando Confiraspa Framework v2.3 ===
-[2026-03-16 00:22:04] [INFO] [install.sh] IP Detectada: 192.168.1.147
-[2026-03-16 00:22:04] [INFO] [install.sh] Log de sesión: /mnt/Datos/Documentos/Repos/confiraspa V2/logs/install_20260316_002204.log
---- Etapa: 00-update ---
-
---- Actualización del Sistema y Parches de Seguridad ---
-[2026-03-16 00:22:04] [ERROR] [install.sh] FALLO CRÍTICO en etapa '00-update' (Exit Code: 1).
-[2026-03-16 00:22:04] [ERROR] [install.sh] Revisa el log: /mnt/Datos/Documentos/Repos/confiraspa V2/logs/install_20260316_002204.log
