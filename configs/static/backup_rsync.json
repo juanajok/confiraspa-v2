@@ -1,0 +1,59 @@
+{
+  "jobs": [
+    {
+      "name": "Fotos",
+      "origen": "/media/WDElements/Fotos",
+      "destino": "/media/Backup/Fotos"
+    },
+    {
+      "name": "Documentos",
+      "origen": "/media/WDElements/Docus",
+      "destino": "/media/Backup/Docus"
+    },
+    {
+      "name": "Biblioteca Calibre",
+      "origen": "/media/WDElements/Libros/Biblioteca de Calibre",
+      "destino": "/media/Backup/Libros"
+    },
+    {
+      "name": "Tebeos",
+      "origen": "/media/WDElements/Tebeos",
+      "destino": "/media/Backup/Tebeos"
+    },
+    {
+      "name": "Sonarr Backups",
+      "origen": "/var/lib/sonarr/Backups/scheduled",
+      "destino": "/media/Backup/sonarr"
+    },
+    {
+      "name": "Radarr Backups",
+      "origen": "/var/lib/radarr/Backups/scheduled",
+      "destino": "/media/Backup/radarr"
+    },
+    {
+      "name": "Readarr Backups",
+      "origen": "/var/lib/readarr/Backups/scheduled",
+      "destino": "/media/Backup/readarr"
+    },
+    {
+      "name": "Lidarr Backups",
+      "origen": "/var/lib/lidarr/Backups/scheduled",
+      "destino": "/media/Backup/lidarr"
+    },
+    {
+      "name": "Prowlarr Backups",
+      "origen": "/var/lib/prowlarr/Backups/scheduled",
+      "destino": "/media/Backup/prowlarr"
+    },
+    {
+      "name": "Whisparr Backups",
+      "origen": "/var/lib/whisparr/Backups/scheduled",
+      "destino": "/media/Backup/whisparr"
+    },
+    {
+      "name": "Plex Config",
+      "origen": "/var/lib/plexmediaserver/Library/Application Support/Plex Media Server",
+      "destino": "/media/Backup/plexmediaserver"
+    }
+  ]
+}
