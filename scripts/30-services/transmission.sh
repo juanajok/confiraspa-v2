@@ -14,6 +14,11 @@ readonly REPO_ROOT
 
 source "$REPO_ROOT/lib/utils.sh"
 source "$REPO_ROOT/lib/validators.sh"
+
+# Cargar .env si no estamos bajo install.sh (ej: --only transmission)
+if [[ -f "$REPO_ROOT/.env" ]]; then
+    source "$REPO_ROOT/.env"
+fi
 # --------------------------
 
 # --- VARIABLES Y CONSTANTES ---
@@ -50,8 +55,8 @@ TRANSMISSION_USER="${TRANSMISSION_USER:-admin}"
 TRANSMISSION_PEER_PORT="${TRANSMISSION_PEER_PORT:-51413}"
 
 # Definición de Directorios NAS (Vienen de 20-storage.sh / .env)
-# DIR_TORRENTS = /media/DiscoDuro/completo
-export DIR_TORRENTS="${DIR_TORRENTS:-/media/DiscoDuro/completo}"
+# DIR_TORRENTS = /media/DiscoDuro/completos
+export DIR_TORRENTS="${DIR_TORRENTS:-/media/DiscoDuro/completos}"
 # Incompleto al lado para evitar movimientos entre particiones
 export DIR_INCOMPLETE="$(dirname "$DIR_TORRENTS")/incompleto"
 

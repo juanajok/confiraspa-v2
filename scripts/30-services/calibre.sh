@@ -14,6 +14,11 @@ readonly REPO_ROOT
 source "$REPO_ROOT/lib/utils.sh"
 source "$REPO_ROOT/lib/validators.sh"
 
+# Cargar .env si no estamos bajo install.sh (ej: --only calibre)
+if [[ -f "$REPO_ROOT/.env" ]]; then
+    source "$REPO_ROOT/.env"
+fi
+
 # --- CONSTANTES ---
 readonly SERVICE="calibre-server"
 readonly BASE_DIR="/opt/calibre"                 # Carpeta raíz de la app
