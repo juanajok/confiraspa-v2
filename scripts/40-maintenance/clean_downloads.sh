@@ -27,6 +27,11 @@ fi
 source "${REPO_ROOT}/lib/utils.sh"
 source "${REPO_ROOT}/lib/validators.sh"
 
+# Cargar .env si no estamos bajo install.sh (ej: ejecución directa desde cron)
+if [[ -f "${REPO_ROOT}/.env" ]]; then
+    source "${REPO_ROOT}/.env"
+fi
+
 # ===========================================================================
 # CONSTANTES
 # ===========================================================================
@@ -109,8 +114,13 @@ build_target_dirs() {
 
     local dir
     for dir in "${env_dirs[@]}"; do
-        [[ -n "${dir}" && -d "${dir}" ]] && dirs_ref+=("${dir}")
+        # || true: si la condición es falsa, el && devuelve 1.
+        # Sin el || true, si el último dir del array no existe,
+        # la función retorna 1 y set -e mata al caller.
+        [[ -n "${dir}" && -d "${dir}" ]] && dirs_ref+=("${dir}") || true
     done
+
+    return 0
 }
 
 # --- Comprobar si un fichero es multimedia por extensión ---
@@ -161,6 +171,8 @@ find_duplicate() {
 
 # --- Limpiar ficheros junk en un directorio si ya no quedan medios ---
 # Imprime el número de ficheros junk eliminados a stdout para que el caller lo capture.
+# IMPORTANTE: Todos los log_info van a >&2 para no contaminar el echo final
+# que es lo único que debe llegar a stdout (capturado por $(...) en el caller).
 cleanup_junk_in_dir() {
     local dir_path="$1"
     local count=0
@@ -179,7 +191,7 @@ cleanup_junk_in_dir() {
     local junk_file
     while IFS= read -r junk_file; do
         if rm -f "${junk_file}" 2>/dev/null; then
-            log_info "  Junk eliminado: $(basename "${junk_file}")"
+            log_info "  Junk eliminado: $(basename "${junk_file}")" >&2
             (( count++ )) || true
         fi
     done < <(find "${dir_path}" -maxdepth 1 -type f -regextype posix-extended \
@@ -187,7 +199,7 @@ cleanup_junk_in_dir() {
 
     # Si el directorio quedó vacío, eliminarlo
     if [[ -d "${dir_path}" ]] && [[ -z "$(ls -A "${dir_path}" 2>/dev/null)" ]]; then
-        rmdir "${dir_path}" 2>/dev/null && log_info "  Directorio vacío eliminado: ${dir_path}"
+        rmdir "${dir_path}" 2>/dev/null && log_info "  Directorio vacío eliminado: ${dir_path}" >&2
     fi
 
     echo "${count}"

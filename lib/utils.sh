@@ -1,12 +1,19 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # lib/utils.sh
 # Descripción: Biblioteca central de funciones para el Framework Confiraspa
-# Versión: 1.4.1 (C2 & C3 Hardened Fix)
+# Versión: 1.5.0 (Cleanup & Consistency Pass)
 # Autor: Juan José Hipólito
+#
+# Changelog v1.5.0:
+#   - Eliminada run_check duplicada (sección 8, era copia de sección 6)
+#   - assert_system_state: eval → bash -c (consistente con execute_cmd)
+#   - check_disk_space: local + $() separados para no enmascarar exit codes
+#   - Eliminada setup_error_handling (código muerto, $LINENO incorrecto)
+#   - Shebang: #!/bin/bash → #!/usr/bin/env bash
 
 # --- 1. CONFIGURACIÓN DEL ENTORNO ---
 
-export UTILS_VERSION="1.4.1"
+export UTILS_VERSION="1.5.0"
 
 # Detectar directorios base
 if [ -z "${INSTALL_DIR:-}" ]; then
@@ -40,7 +47,6 @@ _log_print() {
     local timestamp=$(date +'%Y-%m-%d %H:%M:%S')
     
     # CORRECCIÓN C3/BASH: Uso seguro de BASH_SOURCE para evitar error 'unbound variable'
-    # Usamos ${BASH_SOURCE[2]-} en lugar de [2] directo
     local caller="${BASH_SOURCE[2]-}"
     local script_name="system"
     if [[ -n "$caller" ]]; then
@@ -52,7 +58,6 @@ _log_print() {
 
     # Salida a archivo (si existe y es escribible)
     if [[ -n "${LOG_FILE-}" ]]; then
-        # Eliminamos códigos ANSI para el log de texto plano
         echo "[${timestamp}] [${level}] [${script_name}] ${message}" | sed 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE"
     fi
 }
@@ -61,7 +66,6 @@ log_header() {
     echo -e "\n${BLUE}=====================================================${NC}" >&2
     echo -e "${BLUE}   $1 ${NC}" >&2
     echo -e "${BLUE}=====================================================${NC}" >&2
-    # CORRECCIÓN: Usamos el fallback /dev/null si la variable está vacía
     echo -e "\n=== $1 ===" >> "${LOG_FILE:-/dev/null}"
 }
 
@@ -73,17 +77,17 @@ log_success() { _log_print "OK"   "${GREEN}" "$1"; }
 log_warning() { _log_print "WARN" "${YELLOW}" "$1"; }
 log_error()   { _log_print "ERROR" "${RED}" "$1"; }
 
+log_debug() {
+    [[ "${DEBUG:-false}" == "true" ]] && _log_print "DEBUG" "${CYAN}" "$1"
+    return 0   # Evita que set -e la mate si DEBUG=false
+}
+
 init_logging() {
     mkdir -p "$(dirname "$1")"
     touch "$1"
 }
 
-# --- 3. GESTIÓN DE ERRORES E INICIALIZACIÓN ---
-
-setup_error_handling() {
-    set -o pipefail
-    trap 'log_error "Error inesperado en línea $LINENO (Exit Code: $?)"' ERR
-}
+# --- 3. INICIALIZACIÓN DE PATHS ---
 
 setup_paths() {
     mkdir -p "$CONFIG_DIR" "$LOG_DIR"
@@ -107,13 +111,25 @@ check_network_connectivity() {
     return 0
 }
 
+# Comprueba espacio libre en disco.
+# Uso: check_disk_space "/media/Backup" 2048
+# Retorna 0 si hay al menos $min_mb MB libres, 1 si no.
 check_disk_space() {
     local path="$1"
     local min_mb="${2:-1024}"
-    [ ! -d "$path" ] && path=$(dirname "$path")
-    local available=$(df -Pm "$path" | awk 'END {print $4}')
-    if [ "$available" -lt "$min_mb" ]; then
-        log_error "Espacio insuficiente en $path. Libres: ${available}MB (Mínimo: ${min_mb}MB)"
+
+    [[ ! -d "$path" ]] && path=$(dirname "$path")
+
+    # Separar local de $() para no enmascarar el exit code de df.
+    # Si df falla (ruta inválida), available queda vacío y el check falla limpiamente.
+    local available
+    available=$(df -Pm "$path" 2>/dev/null | awk 'END {print $4}') || {
+        log_error "No se pudo comprobar espacio en disco para: $path"
+        return 1
+    }
+
+    if [[ -z "$available" || "$available" -lt "$min_mb" ]]; then
+        log_error "Espacio insuficiente en $path. Libres: ${available:-?}MB (Mínimo: ${min_mb}MB)"
         return 1
     fi
     return 0
@@ -142,7 +158,6 @@ is_package_installed() {
 ensure_package() {
     local pkg="$1"
     if ! is_package_installed "$pkg"; then
-        # Uso seguro de APT_UPDATED gracias a la inicialización al principio del archivo
         if [ "$APT_UPDATED" = false ]; then
             log_info "Actualizando índices de APT (Lazy Update)..."
             execute_cmd "apt-get update -qq"
@@ -155,7 +170,10 @@ ensure_package() {
 
 # --- 6. EJECUCIÓN SEGURA Y BACKUPS ---
 
-# C2 FIX: Sustitución de 'eval' por 'bash -c' para mayor aislamiento y seguridad
+# Ejecuta un comando (como string) con logging y soporte dry-run.
+# Uso: execute_cmd "comando" "descripción opcional"
+# En dry-run: imprime [DRY-RUN] y retorna 0 sin ejecutar.
+# En producción: ejecuta con bash -c y redirige salida al LOG_FILE.
 execute_cmd() {
     local cmd="${1-}"
     local msg_arg="${2-}"
@@ -172,7 +190,6 @@ execute_cmd() {
         echo -e "${YELLOW}  [DRY-RUN]${NC} $cmd" >&2
         # Drena stdin si viene de un pipe (ej: envsubst | execute_cmd "tee ...").
         # Sin esto, el proceso upstream muere con SIGPIPE y pipefail aborta el script.
-        # En producción este path no se ejecuta, así que no hay riesgo de perder datos.
         [[ -p /dev/stdin ]] && cat > /dev/null
         return 0
     fi
@@ -186,14 +203,16 @@ execute_cmd() {
     fi
 }
 
-# run_check: Para comandos de VALIDACIÓN (testparm, jq, nginx -t...)
-# En Dry-run omite la prueba (porque el archivo no existe).
+# Ejecuta un comando de VALIDACIÓN (testparm, jq, logrotate -d...).
+# En dry-run: lo omite con un aviso (el fichero que validaría no se ha escrito).
+# En producción: ejecuta y propaga el exit code para que el caller decida.
+# Uso: run_check "testparm -s /etc/samba/smb.conf" "Validando smb.conf"
 run_check() {
     local cmd="${1-}"
     local msg="${2:-Verificando: $cmd}"
     log_info "$msg"
 
-    if [[ "${DRY_RUN:-false}" = true ]]; then
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
         log_warning "[DRY-RUN] Validación omitida (archivo no escrito): $cmd"
         return 0
     fi
@@ -215,6 +234,7 @@ create_backup() {
         cp -a "$file" "$backup"
     fi
 }
+
 # --- 7. DESCARGAS ROBUSTAS (RETRY LOGIC) ---
 
 download_secure() {
@@ -251,7 +271,7 @@ download_secure() {
             rm -f "$output"
             if [[ $i -lt $retries ]]; then
                 sleep "$wait_time"
-                wait_time=$((wait_time * 2)) # Backoff exponencial
+                wait_time=$((wait_time * 2))
             fi
         fi
     done
@@ -259,6 +279,7 @@ download_secure() {
     log_error "Fallo crítico: Descarga fallida tras $retries intentos."
     return 1
 }
+
 # --- 8. HEALTH CHECKS ---
 
 # Comprueba si un servicio systemd está activo.
@@ -274,7 +295,8 @@ check_service_active() {
     systemctl is-active --quiet "$service"
 }
 
-# Espera a que un puerto esté respondiendo (TCP)
+# Espera a que un puerto esté respondiendo (TCP).
+# Uso: wait_for_service "localhost" "8989" "Sonarr" 30
 wait_for_service() {
     local host="$1"
     local port="$2"
@@ -288,7 +310,6 @@ wait_for_service() {
 
     log_info "Esperando a que $name escuche en $host:$port..."
     for ((i=0; i<timeout; i++)); do
-        # Truco Bash para comprobar puerto sin netcat
         if timeout 1 bash -c "</dev/tcp/$host/$port" &>/dev/null; then
             log_success "$name está operativo ($host:$port)."
             return 0
@@ -300,49 +321,18 @@ wait_for_service() {
     return 1
 }
 
-# Wrapper para testparm, jq, etc.
-run_check() {
-    local cmd="${1-}"
-    local msg="${2:-Verificando: $cmd}"
-    log_info "$msg"
+# --- 9. VALIDACIONES DE ESTADO ---
 
-    if [[ "${DRY_RUN:-false}" == "true" ]]; then
-        log_warning "[DRY-RUN] Validación omitida (archivo no escrito): $cmd"
-        return 0
-    fi
-
-    if bash -c "$cmd" >> "${LOG_FILE:-/dev/null}" 2>&1; then
-        return 0
-    else
-        local exit_code=$?
-        log_error "Validación fallida (Exit $exit_code): $cmd"
-        return $exit_code
-    fi
-}
-
-# ===========================================================================
-
-log_debug() {
-    [[ "${DEBUG:-false}" == "true" ]] && _log_print "DEBUG" "${CYAN}" "$1"
-    return 0   # ← evita que set -e la mate si DEBUG=false
-}
-
-
-
-# =============================================================================
-# ASSERT_SYSTEM_STATE
-#
 # Evalúa una condición de sistema real.
-#   - En modo producción: falla si la condición no se cumple.
-#   - En modo dry-run: emite un warning y permite continuar.
-#
-# Uso: assert_system_state "comando" "mensaje de error"
-# =============================================================================
+#   - En producción: falla si la condición no se cumple.
+#   - En dry-run: emite un warning y permite continuar.
+# Uso: assert_system_state "id -u pi" "El usuario 'pi' no existe."
 assert_system_state() {
     local condition="$1"
     local error_msg="$2"
 
-    if eval "${condition}" >/dev/null 2>&1; then
+    # bash -c en lugar de eval — consistente con execute_cmd y run_check.
+    if bash -c "${condition}" >/dev/null 2>&1; then
         return 0
     fi
 
