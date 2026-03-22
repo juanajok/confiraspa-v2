@@ -1,91 +1,223 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # scripts/10-network/20-vnc.sh
-# Descripción: Habilita RealVNC y fuerza resolución 720p para modo Headless
-# Autor: Juan José Hipólito (Refactorizado para Confiraspa Framework)
+# Configuración idempotente de VNC con soporte dual Wayland/X11
+# v7.2 - Production Hardened Edition
 
 set -euo pipefail
+IFS=$'\n\t'
 
 # --- CABECERA UNIVERSAL ---
-if [ -z "${REPO_ROOT:-}" ]; then
+if [[ -z "${REPO_ROOT:-}" ]]; then
     REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
-source "$REPO_ROOT/lib/utils.sh"
-source "$REPO_ROOT/lib/validators.sh"
-# --------------------------
+readonly REPO_ROOT
+source "${REPO_ROOT}/lib/utils.sh"
+source "${REPO_ROOT}/lib/validators.sh"
 
-log_section "Configuración de VNC (RealVNC)"
+[[ -f "${REPO_ROOT}/.env" ]] && source "${REPO_ROOT}/.env"
 
-# 1. Detección del archivo de configuración (Bookworm vs Legacy)
-if [ -f "/boot/firmware/config.txt" ]; then
-    CONFIG_FILE="/boot/firmware/config.txt"
-elif [ -f "/boot/config.txt" ]; then
-    CONFIG_FILE="/boot/config.txt"
-elif [[ "${DRY_RUN:-false}" == "true" ]]; then
-    # MEJORA: Si es dry-run y no estamos en una Pi, simulamos el archivo
-    log_warning "[DRY-RUN] Entorno no-RPi detectado. Simulando archivo de configuración."
-    CONFIG_FILE="/tmp/config.txt.sim"
-    touch "$CONFIG_FILE"
-else
-    log_error "No se encontró config.txt en /boot ni /boot/firmware. ¿Es Raspberry Pi OS?"
-    exit 1
-fi
-log_info "Archivo de configuración detectado: $CONFIG_FILE"
+# --- CONSTANTES ---
+readonly VNC_USER="${SYS_USER:-pi}"
+readonly VNC_PORT_X11="5901"
+readonly VNC_PORT_WAYLAND="5900"
 
-# 2. Instalación de RealVNC
-# El servicio vncserver-x11-serviced pertenece al paquete realvnc-vnc-server
-ensure_package "realvnc-vnc-server"
-
-# 3. Configuración de Resolución (Headless Mode)
-# Objetivo: 1280x720 (Group 2, Mode 85) + Force Hotplug
-log_info "Configurando resolución forzada (720p) para modo sin monitor..."
-
-# A. Backup de seguridad
-if [ ! -f "${CONFIG_FILE}.bak" ]; then
-    execute_cmd "cp $CONFIG_FILE ${CONFIG_FILE}.bak" "Creando backup de config.txt"
-fi
-
-# B. Modificación Idempotente
-# Usamos una función helper interna para no repetir lógica
-set_config_var() {
-    local key="$1"
-    local value="$2"
-    local file="$3"
-    
-    if grep -q "^$key=" "$file"; then
-        # Si existe, lo cambiamos (sed inplace)
-        # Solo lo cambiamos si el valor es diferente
-        if ! grep -q "^$key=$value" "$file"; then
-            log_info "Actualizando $key a $value"
-            execute_cmd "sed -i 's/^$key=.*/$key=$value/' $file"
-        fi
+# ===========================================================================
+# DETECCIÓN DE BACKEND
+# ===========================================================================
+detect_display_server() {
+    if [[ -f /etc/xdg/wayfire.ini ]] || [[ -f /etc/xdg/labwc/rc.xml ]]; then
+        echo "wayland"
+    elif ps -e | grep -qE 'wayfire|labwc'; then
+        echo "wayland"
     else
-        # Si no existe, lo añadimos
-        log_info "Añadiendo $key=$value"
-        echo "$key=$value" | execute_cmd "tee -a $file"
+        echo "x11"
     fi
 }
 
-# Aplicar las configuraciones
-# hdmi_force_hotplug=1 es VITAL para que VNC funcione sin cable HDMI conectado
-set_config_var "hdmi_force_hotplug" "1" "$CONFIG_FILE"
-set_config_var "hdmi_group" "2" "$CONFIG_FILE"
-set_config_var "hdmi_mode" "85" "$CONFIG_FILE"
+# ===========================================================================
+# WAYLAND → WAYVNC
+# ===========================================================================
+setup_wayvnc() {
+    log_info "Configurando VNC para entorno Wayland..."
 
-# 4. Gestión del Servicio
-SERVICE="vncserver-x11-serviced.service"
+    ensure_package "wayvnc"
 
-log_info "Gestionando servicio VNC..."
+    local home_dir
+    home_dir=$(getent passwd "${VNC_USER}" | cut -d: -f6)
+    local config_dir="${home_dir}/.config/wayvnc"
+    local config_file="${config_dir}/config"
+    local service_file="/etc/systemd/system/wayvnc.service"
+    local uid
+    uid=$(id -u "${VNC_USER}")
 
-if check_service_active "$SERVICE"; then
-    log_success "El servicio VNC ya está corriendo."
-else
-    execute_cmd "systemctl unmask $SERVICE" || true # Por si acaso estaba enmascarado
-    execute_cmd "systemctl enable $SERVICE" "Habilitando servicio al inicio"
-    execute_cmd "systemctl start $SERVICE" "Iniciando servicio ahora"
-fi
+    if [[ "${DRY_RUN:-false}" == "false" ]]; then
+        execute_cmd "mkdir -p '${config_dir}'" "Creando directorio config WayVNC"
 
-# 5. Información Final
-CURRENT_IP=$(hostname -I | awk '{print $1}')
-log_success "VNC Configurado."
-log_info "Resolución forzada: 1280x720 (Requiere reinicio para aplicar cambios de vídeo)."
-log_info "Conéctate a: $CURRENT_IP:5900"
+        log_info "Generando configuración WayVNC..."
+
+        cat <<EOF > "${config_file}"
+address=0.0.0.0
+port=${VNC_PORT_WAYLAND}
+enable_auth=true
+username=${VNC_USER}
+password=${SYS_PASSWORD:-raspberry}
+EOF
+
+        chown -R "${VNC_USER}:${VNC_USER}" "${config_dir}"
+        chmod 600 "${config_file}"
+
+        log_info "Instalando servicio systemd WayVNC..."
+
+        local tmp
+        tmp=$(mktemp)
+
+        cat <<EOF > "${tmp}"
+[Unit]
+Description=WayVNC Server
+After=graphical.target
+Requires=graphical.target
+
+[Service]
+Type=simple
+User=${VNC_USER}
+Environment=XDG_RUNTIME_DIR=/run/user/${uid}
+ExecStartPre=/bin/sh -c 'while [ ! -e \$XDG_RUNTIME_DIR/wayland-0 ]; do sleep 1; done'
+ExecStart=/usr/bin/wayvnc --config ${config_file}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target
+EOF
+
+        if [[ ! -f "${service_file}" ]] || ! cmp -s "${tmp}" "${service_file}"; then
+            execute_cmd "cp '${tmp}' '${service_file}'" "Instalando servicio WayVNC"
+            execute_cmd "systemctl daemon-reload" "Recargando systemd"
+        else
+            log_info "Servicio WayVNC sin cambios."
+        fi
+
+        rm -f "${tmp}"
+
+        execute_cmd "systemctl enable wayvnc" "Habilitando WayVNC"
+        execute_cmd "systemctl restart wayvnc" "Arrancando WayVNC"
+    else
+        log_success "[DRY-RUN] Se configuraría WayVNC en puerto ${VNC_PORT_WAYLAND}"
+    fi
+}
+
+# ===========================================================================
+# X11 → TIGERVNC
+# ===========================================================================
+setup_tigervnc() {
+    log_info "Configurando VNC para entorno X11 (TigerVNC)..."
+
+    ensure_package "tigervnc-standalone-server"
+    ensure_package "tigervnc-common"
+
+    local home_dir
+    home_dir=$(getent passwd "${VNC_USER}" | cut -d: -f6)
+    local vnc_dir="${home_dir}/.vnc"
+    local passwd_file="${vnc_dir}/passwd"
+    local service_file="/etc/systemd/system/tigervnc@.service"
+
+    if [[ "${DRY_RUN:-false}" == "false" ]]; then
+        execute_cmd "install -d -o ${VNC_USER} -g ${VNC_USER} -m 700 '${vnc_dir}'" "Preparando .vnc"
+
+        if [[ ! -f "$passwd_file" ]]; then
+            log_info "Configurando contraseña TigerVNC..."
+            printf '%s\n' "${SYS_PASSWORD:-raspberry}" | vncpasswd -f > "$passwd_file"
+            chown "${VNC_USER}:${VNC_USER}" "$passwd_file"
+            chmod 600 "$passwd_file"
+        fi
+
+        cat <<EOF > "${vnc_dir}/xstartup"
+#!/bin/sh
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+exec startlxde-pi
+EOF
+
+        chmod +x "${vnc_dir}/xstartup"
+        chown "${VNC_USER}:${VNC_USER}" "${vnc_dir}/xstartup"
+
+        local tmp
+        tmp=$(mktemp)
+
+        cat <<EOF > "${tmp}"
+[Unit]
+Description=TigerVNC Server on display %i
+After=network.target
+
+[Service]
+Type=simple
+User=${VNC_USER}
+ExecStartPre=-/usr/bin/vncserver -kill :%i > /dev/null 2>&1
+ExecStart=/usr/bin/vncserver :%i -geometry 1280x720 -depth 16 -localhost no -fg
+ExecStop=/usr/bin/vncserver -kill :%i
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+        if [[ ! -f "${service_file}" ]] || ! cmp -s "${tmp}" "${service_file}"; then
+            execute_cmd "cp '${tmp}' '${service_file}'" "Instalando servicio TigerVNC"
+            execute_cmd "systemctl daemon-reload" "Recargando systemd"
+        else
+            log_info "Servicio TigerVNC sin cambios."
+        fi
+
+        rm -f "${tmp}"
+
+        execute_cmd "systemctl enable tigervnc@1" "Habilitando TigerVNC"
+        execute_cmd "systemctl restart tigervnc@1" "Arrancando TigerVNC"
+    else
+        log_success "[DRY-RUN] Se configuraría TigerVNC en puerto ${VNC_PORT_X11}"
+    fi
+}
+
+# ===========================================================================
+# MAIN
+# ===========================================================================
+main() {
+    log_section "Configuración de Acceso Remoto VNC"
+
+    validate_root
+    require_system_commands systemctl ps grep dpkg-query
+
+    # Eliminar RealVNC si existe
+    if dpkg -l | grep -q realvnc-vnc-server; then
+        log_warning "Eliminando RealVNC..."
+        execute_cmd "systemctl stop vncserver-x11-serviced.service || true"
+        execute_cmd "apt-get purge -y realvnc-vnc-server"
+    fi
+
+    # Detectar backend
+    local backend
+    backend=$(detect_display_server)
+    log_info "Backend detectado: ${backend^^}"
+
+    local port
+    if [[ "$backend" == "wayland" ]]; then
+        setup_wayvnc
+        port=$VNC_PORT_WAYLAND
+    else
+        setup_tigervnc
+        port=$VNC_PORT_X11
+    fi
+
+    # Resultado
+    local ip
+    ip=$(get_ip_address)
+
+    log_success "VNC operativo sobre ${backend}."
+    log_info "Acceso: ${ip}:${port}"
+    log_warning "Firewall: asegúrate de permitir el puerto ${port} en UFW."
+
+    if [[ "$backend" == "wayland" ]]; then
+        log_info "Remmina → Security: TLS o None"
+    fi
+}
+
+main "$@"
