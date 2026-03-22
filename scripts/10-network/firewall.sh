@@ -1,148 +1,279 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # scripts/10-network/firewall.sh
-# Descripción: Configuración de Firewall (UFW) con estrategia LAN-Only Hardened
-# Autor: Juan José Hipólito (Refactorizado v4.1 - Fix Syntax)
+# Configuración idempotente de UFW con estrategia LAN-Only Hardened.
+#
+# Todos los puertos se leen del .env con defaults estándar. Si cambias un
+# puerto en un servicio (ej: CALIBRE_PORT=9090), al re-ejecutar este script
+# el firewall se actualiza automáticamente.
+#
+# Estructura de zonas:
+#   - Zona Admin:   SSH (solo LAN)
+#   - Zona Pública: P2P/Streaming (accesible desde Internet para funcionar)
+#   - Zona Privada: Web UIs de todos los servicios (solo LAN)
 
 set -euo pipefail
+IFS=$'\n\t'
 
-# --- CABECERA UNIVERSAL ---
-if [ -z "${REPO_ROOT:-}" ]; then
-    REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# ===========================================================================
+# CABECERA UNIVERSAL
+# ===========================================================================
+readonly SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ -z "${REPO_ROOT:-}" ]]; then
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+    export REPO_ROOT
 fi
-readonly REPO_ROOT
-source "$REPO_ROOT/lib/utils.sh"
-source "$REPO_ROOT/lib/validators.sh"
+
+source "${REPO_ROOT}/lib/utils.sh"
+source "${REPO_ROOT}/lib/validators.sh"
 
 # Cargar .env si no estamos bajo install.sh (ej: --only firewall)
-if [[ -f "$REPO_ROOT/.env" ]]; then
-    source "$REPO_ROOT/.env"
-fi
-# --------------------------
-
-# --- VARIABLES Y CONSTANTES ---
-SSH_PORT="${SSH_PORT:-22}" 
-WEBMIN_PORT="10000"
-PLEX_PORT="32400"
-TRANSMISSION_WEB="9091"
-TRANSMISSION_PEER="${TRANSMISSION_PEER_PORT:-51413}"
-CALIBRE_PORT="8080"
-BAZARR_PORT="6767"
-
-# --- DETECCIÓN DINÁMICA DE SUBRED ---
-CURRENT_SUBNET=$(ip -o -f inet addr show | awk '/scope global/ {print $4}' | head -n 1)
-
-if [[ -z "$CURRENT_SUBNET" ]]; then
-    log_warning "No se pudo detectar la subred. Usando valores por defecto RFC1918."
-    readonly PRIVATE_SUBNETS=("192.168.0.0/16" "172.16.0.0/12" "10.0.0.0/8")
-else
-    log_info "Subred detectada: $CURRENT_SUBNET"
-    readonly PRIVATE_SUBNETS=("$CURRENT_SUBNET" "10.0.0.0/8" "100.64.0.0/10")
+if [[ -f "${REPO_ROOT}/.env" ]]; then
+    source "${REPO_ROOT}/.env"
 fi
 
-log_section "Hardening de Red (Firewall UFW)"
+# ===========================================================================
+# PUERTOS — todos del .env con defaults estándar
+# ===========================================================================
 
-# 1. Validaciones
-validate_root
-ensure_package "ufw"
+# Administración
+readonly FW_SSH_PORT="${SSH_PORT:-22}"
 
-# --- FUNCIÓN HELPER (DRY) ---
-allow_lan() {
-    local port="$1"
-    local proto="$2"
-    local comment="$3"
-    
-    log_info "  -> Configurando $port/$proto para LAN ($comment)..."
-    
-    for subnet in "${PRIVATE_SUBNETS[@]}"; do
-        if [ -z "$proto" ]; then
-            # CORRECCIÓN: Comillas simples para el comentario interno
-            execute_cmd "ufw allow from $subnet to any port $port comment '$comment (LAN)'"
-        else
-            execute_cmd "ufw allow from $subnet to any port $port proto $proto comment '$comment (LAN)'"
+# P2P / Streaming (necesitan acceso público para funcionar)
+readonly FW_PLEX_PORT="${PLEX_PORT:-32400}"
+readonly FW_TRANSMISSION_PEER="${TRANSMISSION_PEER_PORT:-51413}"
+readonly FW_AMULE_TCP="4662"     # eD2k — protocolo fijo, no configurable
+readonly FW_AMULE_UDP="4672"     # Kademlia — protocolo fijo, no configurable
+
+# Web UIs (solo LAN)
+readonly FW_WEBMIN_PORT="${WEBMIN_PORT:-10000}"
+readonly FW_TRANSMISSION_WEB="${TRANSMISSION_WEB_PORT:-9091}"
+readonly FW_AMULE_WEB="4711"
+readonly FW_CALIBRE_PORT="${CALIBRE_PORT:-8083}"
+readonly FW_BAZARR_PORT="${BAZARR_PORT:-6767}"
+readonly FW_XRDP_PORT="3389"
+readonly FW_VNC_REALVNC="5900"
+readonly FW_VNC_TIGERVNC="5901"
+
+# Suite *Arr — puertos estándar (no suelen cambiarse)
+readonly FW_SONARR_PORT="${SONARR_PORT:-8989}"
+readonly FW_RADARR_PORT="${RADARR_PORT:-7878}"
+readonly FW_LIDARR_PORT="${LIDARR_PORT:-8686}"
+readonly FW_READARR_PORT="${READARR_PORT:-8787}"
+readonly FW_PROWLARR_PORT="${PROWLARR_PORT:-9696}"
+readonly FW_WHISPARR_PORT="${WHISPARR_PORT:-6969}"
+
+# ===========================================================================
+# FUNCIONES LOCALES
+# ===========================================================================
+
+on_error() {
+    local exit_code="${1:-1}"
+    local line_no="${BASH_LINENO[0]:-unknown}"
+    local source_file="${BASH_SOURCE[1]:-${SCRIPT_NAME}}"
+
+    log_error "Error en '$(basename "${source_file}")' (línea ${line_no}, exit code ${exit_code})."
+}
+
+parse_args() {
+    DRY_RUN="${DRY_RUN:-false}"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dry-run) DRY_RUN="true" ;;
+            *) log_warning "Argumento desconocido: $1" ;;
+        esac
+        shift
+    done
+    export DRY_RUN
+}
+
+require_system_commands() {
+    local cmd
+    for cmd in "$@"; do
+        if ! command -v "${cmd}" &>/dev/null; then
+            log_error "Comando requerido del sistema no disponible: ${cmd}"
+            exit 1
         fi
     done
 }
 
-# 2. Reset Inicial
-log_info "Estado previo: Reseteando reglas..."
-execute_cmd "ufw --force reset > /dev/null"
+# ===========================================================================
+# FUNCIONES DE NEGOCIO
+# ===========================================================================
 
-# 3. Políticas por Defecto
-log_info "Política base: Cerrar todo, permitir salida."
-execute_cmd "ufw default deny incoming"
-execute_cmd "ufw default allow outgoing"
+# --- Detectar subred local ---
+detect_subnets() {
+    local current_subnet
+    current_subnet=$(ip -o -f inet addr show | awk '/scope global/ {print $4}' | head -n 1)
 
-# ==========================================
-# ZONA 1: ACCESO ADMINISTRATIVO SEGURO
-# ==========================================
-log_subsection "Zona de Administración (SSH)"
+    if [[ -z "${current_subnet}" ]]; then
+        log_warning "No se pudo detectar la subred. Usando RFC1918 completo."
+        PRIVATE_SUBNETS=("192.168.0.0/16" "172.16.0.0/12" "10.0.0.0/8")
+    else
+        log_info "Subred detectada: ${current_subnet}"
+        # Subred real + rangos para VPN (Tailscale usa 100.64.0.0/10)
+        PRIVATE_SUBNETS=("${current_subnet}" "10.0.0.0/8" "100.64.0.0/10")
+    fi
+}
 
-log_info "Configurando SSH en puerto $SSH_PORT (Restringido a LAN)..."
-for subnet in "${PRIVATE_SUBNETS[@]}"; do
-    # CORRECCIÓN: Sintaxis limpia para execute_cmd
-    execute_cmd "ufw allow from $subnet to any port $SSH_PORT proto tcp comment 'SSH Admin (LAN)'"
-done
+# --- Permitir un puerto solo desde LAN ---
+# Uso: allow_lan "puerto" "proto" "Descripción del servicio"
+allow_lan() {
+    local port="$1"
+    local proto="$2"
+    local comment="$3"
 
-# ==========================================
-# ZONA 2: ACCESO PÚBLICO (NECESARIO PARA P2P/MEDIA)
-# ==========================================
-log_subsection "Zona Pública (P2P y Streaming)"
+    log_info "  -> ${port}/${proto} para LAN (${comment})..."
 
-log_info "Configurando P2P (Transmission Peers)..."
-execute_cmd "ufw allow $TRANSMISSION_PEER/tcp comment 'Torrent Peer TCP'"
-execute_cmd "ufw allow $TRANSMISSION_PEER/udp comment 'Torrent Peer UDP'"
+    local subnet
+    for subnet in "${PRIVATE_SUBNETS[@]}"; do
+        execute_cmd "ufw allow from ${subnet} to any port ${port} proto ${proto} comment '${comment} (LAN)'"
+    done
+}
 
-log_info "Configurando Plex Streaming..."
-execute_cmd "ufw allow $PLEX_PORT/tcp comment 'Plex Main'"
+# --- Permitir un puerto desde cualquier origen ---
+# Uso: allow_public "puerto" "proto" "Descripción"
+allow_public() {
+    local port="$1"
+    local proto="$2"
+    local comment="$3"
 
-log_info "Configurando aMule..."
-execute_cmd "ufw allow 4662/tcp comment 'eD2k TCP (Global)'"
-execute_cmd "ufw allow 4672/udp comment 'Kademlia UDP (Global)'"
+    log_info "  -> ${port}/${proto} público (${comment})..."
+    execute_cmd "ufw allow ${port}/${proto} comment '${comment}'"
+}
 
-# ==========================================
-# ZONA 3: ACCESO PRIVADO (SOLO LAN)
-# ==========================================
-log_subsection "Zona Privada (Solo LAN/VPN)"
+# --- Reset y políticas base ---
+configure_base_policy() {
+    log_info "Reseteando reglas anteriores..."
+    execute_cmd "ufw --force reset" "Reset UFW"
 
-allow_lan "$WEBMIN_PORT" "tcp" "Webmin Admin"
+    log_info "Política base: denegar entrada, permitir salida."
+    execute_cmd "ufw default deny incoming" "Deny incoming"
+    execute_cmd "ufw default allow outgoing" "Allow outgoing"
+}
 
-log_info "  -> Configurando Samba y Rsync (LAN)..."
-for subnet in "${PRIVATE_SUBNETS[@]}"; do
-    execute_cmd "ufw allow from $subnet to any port 137,138 proto udp comment 'Samba UDP (LAN)'"
-    execute_cmd "ufw allow from $subnet to any port 139,445 proto tcp comment 'Samba TCP (LAN)'"
-    execute_cmd "ufw allow from $subnet to any port 873 proto tcp comment 'Rsync Backup (LAN)'"
-done
+# --- Zona 1: Administración (SSH solo LAN) ---
+configure_admin_zone() {
+    log_subsection "Zona Admin (SSH)"
+    allow_lan "${FW_SSH_PORT}" "tcp" "SSH Admin"
+}
 
-allow_lan "$TRANSMISSION_WEB" "tcp" "Transmission Web UI"
-allow_lan "4711" "tcp" "aMule Web UI"
-allow_lan "$BAZARR_PORT" "tcp" "Bazarr UI"
-allow_lan "$CALIBRE_PORT" "tcp" "Calibre Server"
+# --- Zona 2: Servicios públicos (P2P y streaming) ---
+# Estos puertos necesitan acceso desde Internet para funcionar.
+# Sin ellos, Transmission no puede recibir peers y Plex no puede
+# hacer streaming remoto.
+configure_public_zone() {
+    log_subsection "Zona Pública (P2P y Streaming)"
 
-ARR_PORTS=("8989" "7878" "8686" "8787" "9696" "6969")
-ARR_NAMES=("Sonarr" "Radarr" "Lidarr" "Readarr" "Prowlarr" "Whisparr")
+    log_info "Configurando Transmission P2P..."
+    allow_public "${FW_TRANSMISSION_PEER}" "tcp" "Torrent Peer TCP"
+    allow_public "${FW_TRANSMISSION_PEER}" "udp" "Torrent Peer UDP"
 
-for i in "${!ARR_PORTS[@]}"; do
-    allow_lan "${ARR_PORTS[$i]}" "tcp" "${ARR_NAMES[$i]}"
-done
+    log_info "Configurando Plex Streaming..."
+    allow_public "${FW_PLEX_PORT}" "tcp" "Plex Main"
 
-allow_lan "3389" "tcp" "XRDP"
-allow_lan "5900" "tcp" "VNC"
+    log_info "Configurando aMule P2P..."
+    allow_public "${FW_AMULE_TCP}" "tcp" "eD2k TCP"
+    allow_public "${FW_AMULE_UDP}" "udp" "Kademlia UDP"
+}
 
-# ==========================================
-# ACTIVACIÓN
-# ==========================================
-log_subsection "Activación"
+# --- Zona 3: Servicios privados (Web UIs solo LAN) ---
+configure_private_zone() {
+    log_subsection "Zona Privada (Solo LAN)"
 
-execute_cmd "ufw logging low"
+    # Samba y Rsync — puertos múltiples, manejo especial
+    log_info "Configurando Samba y Rsync..."
+    local subnet
+    for subnet in "${PRIVATE_SUBNETS[@]}"; do
+        execute_cmd "ufw allow from ${subnet} to any port 137,138 proto udp comment 'Samba UDP (LAN)'"
+        execute_cmd "ufw allow from ${subnet} to any port 139,445 proto tcp comment 'Samba TCP (LAN)'"
+        execute_cmd "ufw allow from ${subnet} to any port 873 proto tcp comment 'Rsync Backup (LAN)'"
+    done
 
-log_warning "IMPORTANTE: Si estás conectado por SSH desde fuera de tu red local, esta acción cortará la conexión."
-log_info "Activando firewall..."
+    # Administración web
+    allow_lan "${FW_WEBMIN_PORT}" "tcp" "Webmin Admin"
 
-execute_cmd "ufw --force enable"
-execute_cmd "ufw reload"
+    # Clientes de descarga
+    allow_lan "${FW_TRANSMISSION_WEB}" "tcp" "Transmission Web UI"
+    allow_lan "${FW_AMULE_WEB}" "tcp" "aMule Web UI"
 
-echo ""
-log_success "Firewall 'LAN-Hardened' activo."
-echo "---------------------------------------------------------"
-execute_cmd "ufw status numbered"
-echo "---------------------------------------------------------"
+    # Multimedia
+    allow_lan "${FW_CALIBRE_PORT}" "tcp" "Calibre Content Server"
+    allow_lan "${FW_BAZARR_PORT}" "tcp" "Bazarr Subtítulos"
+
+    # Suite *Arr
+    allow_lan "${FW_SONARR_PORT}" "tcp" "Sonarr"
+    allow_lan "${FW_RADARR_PORT}" "tcp" "Radarr"
+    allow_lan "${FW_LIDARR_PORT}" "tcp" "Lidarr"
+    allow_lan "${FW_READARR_PORT}" "tcp" "Readarr"
+    allow_lan "${FW_PROWLARR_PORT}" "tcp" "Prowlarr"
+    allow_lan "${FW_WHISPARR_PORT}" "tcp" "Whisparr"
+
+    # Acceso remoto (escritorio)
+    allow_lan "${FW_XRDP_PORT}" "tcp" "XRDP"
+    allow_lan "${FW_VNC_REALVNC}" "tcp" "VNC (WayVNC/RealVNC)"
+    allow_lan "${FW_VNC_TIGERVNC}" "tcp" "VNC (TigerVNC)"
+}
+
+# --- Activar UFW ---
+activate_firewall() {
+    log_subsection "Activación"
+
+    execute_cmd "ufw logging low" "Logging nivel bajo"
+
+    log_warning "IMPORTANTE: Si estás conectado por SSH desde fuera de la LAN, esta acción cortará la conexión."
+
+    execute_cmd "ufw --force enable" "Activando UFW"
+    execute_cmd "ufw reload" "Recargando reglas"
+}
+
+# --- Resumen ---
+show_summary() {
+    log_success "Firewall LAN-Hardened activo."
+    log_info "Resumen de zonas:"
+    log_info "  Admin:   SSH :${FW_SSH_PORT} (solo LAN)"
+    log_info "  Público: Plex :${FW_PLEX_PORT}, Torrent :${FW_TRANSMISSION_PEER}, aMule :${FW_AMULE_TCP}/${FW_AMULE_UDP}"
+    log_info "  Privado: Web UIs de todos los servicios (solo LAN)"
+    log_info ""
+    log_info "Puertos configurables via .env:"
+    log_info "  SSH_PORT, PLEX_PORT, TRANSMISSION_PEER_PORT, CALIBRE_PORT,"
+    log_info "  WEBMIN_PORT, BAZARR_PORT, SONARR_PORT, RADARR_PORT, etc."
+}
+
+# ===========================================================================
+# MAIN
+# ===========================================================================
+main() {
+    trap 'on_error "$?"' ERR
+
+    # --- Inicialización ---
+    parse_args "$@"
+    log_section "Hardening de Red (Firewall UFW)"
+
+    # --- 1. Validaciones ---
+    validate_root
+    require_system_commands ip awk
+    ensure_package "ufw"
+
+    # --- 2. Detectar subred ---
+    # Variable de módulo — usada por allow_lan
+    local -a PRIVATE_SUBNETS=()
+    detect_subnets
+
+    # --- 3. Reset y políticas base ---
+    configure_base_policy
+
+    # --- 4. Zonas ---
+    configure_admin_zone
+    configure_public_zone
+    configure_private_zone
+
+    # --- 5. Activar ---
+    activate_firewall
+
+    # --- 6. Resumen ---
+    show_summary
+}
+
+main "$@"
