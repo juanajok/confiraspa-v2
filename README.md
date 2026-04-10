@@ -132,6 +132,57 @@ sudo ./install.sh --dry-run
 sudo ./install.sh --dry-run --only radarr
 ```
 
+### Restaurar la configuración de las apps
+
+El script `scripts/40-maintenance/restore_apps.sh` recupera la configuración de cada servicio a partir de los backups almacenados en disco. Es útil tras una reinstalación, un fallo de disco del sistema, o para migrar el servidor a una Raspberry Pi nueva.
+
+**¿Qué restaura?**
+
+| App | Fuente del backup | Archivos restaurados |
+| :--- | :--- | :--- |
+| Radarr | `/media/Backup/radarr/*.zip` | `radarr.db`, `config.xml` |
+| Sonarr | `/media/Backup/sonarr/*.zip` | `sonarr.db`, `config.xml` |
+| Lidarr | `/media/Backup/lidarr/*.zip` | `lidarr.db`, `config.xml` |
+| Readarr | `/media/Backup/readarr/*.zip` | `readarr.db`, `config.xml` |
+| Prowlarr | `/media/Backup/prowlarr/*.zip` | `prowlarr.db`, `config.xml` |
+| Whisparr | `/media/Backup/whisparr/*.zip` | `whisparr2.db`, `config.xml` |
+| Plex | `/media/Backup/plexmediaserver/` | `Preferences.xml` |
+| rclone | `/media/Backup/rclone/` | `rclone.conf` |
+
+El script selecciona automáticamente **el backup más reciente** disponible en cada directorio.
+
+**Pasos para restaurar**
+
+1. Asegúrate de que el disco de backups está montado y los backups existen:
+
+   ```bash
+   ls /media/Backup/
+   ```
+
+2. Simula primero para verificar qué se restauraría sin tocar nada:
+
+   ```bash
+   sudo ./scripts/40-maintenance/restore_apps.sh --dry-run
+   ```
+
+3. Ejecuta la restauración real:
+
+   ```bash
+   sudo ./scripts/40-maintenance/restore_apps.sh
+   ```
+
+**¿Qué hace el script internamente?**
+
+- Detiene cada servicio antes de restaurar y lo vuelve a arrancar al terminar.
+- Para los *Arr (backups en ZIP): extrae los archivos indicados en `configs/static/restore.json` y elimina los ficheros WAL de SQLite residuales (`.db-wal`, `.db-shm`) para evitar corrupción.
+- Para Plex y rclone (ficheros sueltos): copia directamente desde el directorio de backup.
+- Corrige `BindAddress` en `config.xml` si el backup venía configurado en `127.0.0.1` o `localhost`, cambiándolo a `*` para que la interfaz web sea accesible desde la red local.
+- Aplica los permisos y propietarios correctos a todos los archivos restaurados.
+
+> Las rutas de backup y los archivos a restaurar se configuran en `configs/static/restore.json`. Edita ese archivo si has cambiado las rutas en tu `.env`.
+
+---
+
 ### Ver los logs de mantenimiento automático
 
 Los trabajos programados escriben sus logs en `/var/log/`:
@@ -176,6 +227,7 @@ confiraspa/
 │   ├── mounts.json           # Definición de discos a montar
 │   ├── retention.json        # Política de retención de backups
 │   ├── cloud_backups.json    # Trabajos de backup a Google Drive
+│   ├── restore.json          # Qué restaurar, desde dónde y con qué permisos
 │   ├── crontabs.txt          # Tareas programadas gestionadas por Confiraspa
 │   └── templates/            # Plantillas de configuración (smb.conf, etc.)
 ├── scripts/
