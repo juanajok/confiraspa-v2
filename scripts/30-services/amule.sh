@@ -140,7 +140,7 @@ ensure_amule_user() {
 # --- Crear directorios con permisos correctos ---
 ensure_amule_directories() {
     local dir
-    for dir in "${AMULE_HOME}" "${AMULE_HOME}/Incoming" "${AMULE_HOME}/Temp" "${CONF_DIR}"; do
+    for dir in "${AMULE_HOME}" "${CONF_DIR}" "${DIR_TORRENTS}" "${DIR_TORRENTS_TEMP}"; do
         execute_cmd "install -d -o '${AMULE_USER}' -g '${AMULE_USER}' -m 750 '${dir}'" \
             "Asegurando directorio: ${dir}"
     done
@@ -180,14 +180,14 @@ render_amule_config() {
     current_hostname="$(hostname)"
 
     # Exportar para envsubst — solo las variables que la plantilla necesita
-    export AMULE_HOME AMULE_PASS_MD5="${amule_pass_md5}" AMULE_WEB_PASS_MD5="${amule_web_pass_md5}" HOSTNAME="${current_hostname}"
+    export AMULE_HOME DIR_TORRENTS DIR_TORRENTS_TEMP AMULE_PASS_MD5="${amule_pass_md5}" AMULE_WEB_PASS_MD5="${amule_web_pass_md5}" HOSTNAME="${current_hostname}"
 
     if [[ ! -f "${TEMPLATE_FILE}" ]]; then
         log_error "Plantilla no encontrada: ${TEMPLATE_FILE}"
         exit 1
     fi
 
-    envsubst '${AMULE_HOME} ${HOSTNAME} ${AMULE_PASS_MD5} ${AMULE_WEB_PASS_MD5}' \
+    envsubst '${AMULE_HOME} ${DIR_TORRENTS} ${DIR_TORRENTS_TEMP} ${HOSTNAME} ${AMULE_PASS_MD5} ${AMULE_WEB_PASS_MD5}' \
         < "${TEMPLATE_FILE}" > "${candidate}"
 
     echo "${candidate}"
@@ -257,8 +257,8 @@ post_checks() {
     log_success "aMule Daemon operativo."
     log_info "  Web UI:  http://${ip}:${AMULE_WEB_PORT}"
     log_info "  EC Port: 4712 (para control remoto desde aMule GUI)"
-    log_info "  Datos:   ${AMULE_HOME}/Incoming"
-    log_info "  Temp:    ${AMULE_HOME}/Temp"
+    log_info "  Datos:   ${DIR_TORRENTS}"
+    log_info "  Temp:    ${DIR_TORRENTS_TEMP}"
 }
 
 # ===========================================================================
@@ -284,7 +284,7 @@ main() {
     # Variables del .env necesarias
     AMULE_PASS="${AMULE_PASS:-}"
     AMULE_WEB_PASS="${AMULE_WEB_PASS:-}"
-    require_env_vars AMULE_PASS AMULE_WEB_PASS
+    require_env_vars AMULE_PASS AMULE_WEB_PASS DIR_TORRENTS DIR_TORRENTS_TEMP
 
     # --- 2. Instalación de paquetes ---
     ensure_package "amule-daemon"
