@@ -39,6 +39,8 @@ readonly TEMPLATE_FILE="${REPO_ROOT}/configs/static/templates/amule.conf"
 readonly TARGET_CONF="${CONF_DIR}/amule.conf"
 readonly DEFAULT_FILE="/etc/default/amule-daemon"
 readonly AMULE_WEB_PORT="4711"
+# Grupo multimedia compartido con Sonarr/Radarr/Samba — viene de .env o default
+readonly MEDIA_GROUP="${ARR_GROUP:-media}"
 
 # ===========================================================================
 # FUNCIONES LOCALES
@@ -119,31 +121,92 @@ require_env_vars() {
 # FUNCIONES DE NEGOCIO
 # ===========================================================================
 
-# --- Crear usuario de sistema para aMule ---
+# --- Crear usuario de sistema para aMule e integrarlo en el ecosistema NAS ---
 ensure_amule_user() {
+    # 1. Crear usuario si no existe
     if id "${AMULE_USER}" &>/dev/null; then
         log_info "Usuario '${AMULE_USER}' ya existe."
-        return 0
-    fi
-
-    if [[ "${DRY_RUN}" == "true" ]]; then
+    elif [[ "${DRY_RUN}" == "true" ]]; then
         log_warning "[DRY-RUN] Usuario '${AMULE_USER}' no existe (normal en simulación)."
         execute_cmd "useradd --system --home-dir '${AMULE_HOME}' --shell /bin/false '${AMULE_USER}'" \
             "Creando usuario de sistema: ${AMULE_USER}"
+    else
+        execute_cmd "useradd --system --home-dir '${AMULE_HOME}' --shell /bin/false '${AMULE_USER}'" \
+            "Creando usuario de sistema: ${AMULE_USER}"
+    fi
+
+    # 2. INTEGRACIÓN NAS: añadir amule al grupo multimedia
+    # Sin esto Sonarr/Radarr reciben Permission Denied al intentar mover
+    # archivos descargados, y Samba no puede servirlos en Windows/Mac.
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        execute_cmd "usermod -aG '${MEDIA_GROUP}' '${AMULE_USER}'" \
+            "Añadiendo ${AMULE_USER} al grupo NAS: ${MEDIA_GROUP}"
         return 0
     fi
 
-    execute_cmd "useradd --system --home-dir '${AMULE_HOME}' --shell /bin/false '${AMULE_USER}'" \
-        "Creando usuario de sistema: ${AMULE_USER}"
+    if ! getent group "${MEDIA_GROUP}" &>/dev/null; then
+        log_error "El grupo '${MEDIA_GROUP}' no existe. Ejecuta antes el script de usuarios/grupos."
+        exit 1
+    fi
+
+    if ! id -nG "${AMULE_USER}" | grep -qw "${MEDIA_GROUP}"; then
+        execute_cmd "usermod -aG '${MEDIA_GROUP}' '${AMULE_USER}'" \
+            "Añadiendo ${AMULE_USER} al grupo NAS: ${MEDIA_GROUP}"
+    else
+        log_info "Usuario '${AMULE_USER}' ya pertenece al grupo '${MEDIA_GROUP}'."
+    fi
 }
 
 # --- Crear directorios con permisos correctos ---
 ensure_amule_directories() {
     local dir
-    for dir in "${AMULE_HOME}" "${CONF_DIR}" "${DIR_TORRENTS}" "${DIR_TORRENTS_TEMP}"; do
+
+    # Directorios internos — solo aMule accede (config, claves, logs internes)
+    # SECURITY: 750, propietario amule:amule — ningún otro usuario entra aquí.
+    for dir in "${AMULE_HOME}" "${CONF_DIR}"; do
         execute_cmd "install -d -o '${AMULE_USER}' -g '${AMULE_USER}' -m 750 '${dir}'" \
-            "Asegurando directorio: ${dir}"
+            "Asegurando directorio interno: ${dir}"
     done
+
+    # Directorios NAS — compartidos con el grupo media (Sonarr/Radarr/Samba)
+    # SECURITY: 2775 (no 777) — escritura solo para propietario y grupo.
+    # SetGID (bit 2xxx): los archivos que aMule crea heredan el grupo media
+    # automáticamente, sin necesidad de chown posterior.
+    for dir in "${DIR_TORRENTS}" "${DIR_TORRENTS_TEMP}"; do
+        execute_cmd "install -d -o '${AMULE_USER}' -g '${MEDIA_GROUP}' -m 2775 '${dir}'" \
+            "Asegurando directorio NAS: ${dir}"
+        # chmod g+s explícito: install -m no siempre propaga el bit setgid en todos los sistemas.
+        execute_cmd "chmod g+s '${dir}'" \
+            "Activando SetGID en: ${dir}"
+    done
+}
+
+# --- Override de systemd: forzar UMask=0002 ---
+# Por defecto los daemons crean archivos con UMask=0022 → permisos 644.
+# Con UMask=0002 los archivos nacen con 664 (grupo puede escribir/borrar),
+# lo que permite a Sonarr/Radarr mover y eliminar descargas completadas.
+install_systemd_override() {
+    local temp_dir="$1"
+    local override_dir="/etc/systemd/system/${SERVICE_NAME}.service.d"
+    local override_file="${override_dir}/override.conf"
+    local candidate="${temp_dir}/systemd-override.conf"
+
+    cat > "${candidate}" <<EOF
+# Generado por Confiraspa — no editar manualmente
+[Service]
+UMask=0002
+EOF
+
+    execute_cmd "mkdir -p '${override_dir}'" \
+        "Creando directorio de override de systemd"
+
+    if [[ -f "${override_file}" ]] && cmp -s "${override_file}" "${candidate}"; then
+        log_info "Override de systemd sin cambios."
+        return 0
+    fi
+
+    execute_cmd "cp '${candidate}' '${override_file}'" \
+        "Instalando override de UMask para ${SERVICE_NAME}"
 }
 
 # --- Configurar /etc/default/amule-daemon ---
@@ -279,7 +342,7 @@ main() {
 
     # --- 1. Validaciones previas ---
     validate_root
-    require_system_commands install systemctl id getent awk md5sum hostname grep
+    require_system_commands install systemctl id getent usermod awk md5sum hostname grep
 
     # Variables del .env necesarias
     AMULE_PASS="${AMULE_PASS:-}"
@@ -306,7 +369,11 @@ main() {
     temp_dir="$(mktemp -d)"
     install_default_file "${temp_dir}"
 
-    # --- 5. Generar e instalar configuración de aMule ---
+    # --- 5. Override de systemd (UMask para herencia de permisos NAS) ---
+    # Debe instalarse antes de daemon-reload + restart en el paso 7.
+    install_systemd_override "${temp_dir}"
+
+    # --- 6. Generar e instalar configuración de aMule ---
     local config_changed=false
     local candidate
     candidate="$(render_amule_config "${temp_dir}")"
@@ -315,7 +382,7 @@ main() {
         config_changed=true
     fi
 
-    # --- 6. Arranque y verificación ---
+    # --- 7. Arranque y verificación ---
     if [[ "${config_changed}" == "true" ]]; then
         log_info "Configuración actualizada — reiniciando servicio..."
         start_and_verify
