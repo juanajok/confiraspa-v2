@@ -39,6 +39,7 @@ Además configura automáticamente:
 - Backups semanales en Google Drive con rclone
 - Rotación automática de backups (conserva los 5 más recientes por servicio)
 - Limpieza de descargas duplicadas
+- Swap + ZSWAP optimizado para Raspberry Pi 5 con NVMe (opcional)
 
 ---
 
@@ -180,6 +181,59 @@ El script selecciona automáticamente **el backup más reciente** disponible en 
 - Aplica los permisos y propietarios correctos a todos los archivos restaurados.
 
 > Las rutas de backup y los archivos a restaurar se configuran en `configs/static/restore.json`. Edita ese archivo si has cambiado las rutas en tu `.env`.
+
+---
+
+### Optimizar la memoria con ZSWAP (Raspberry Pi 5 + NVMe)
+
+El script `scripts/40-maintenance/configurar_swap_zswap.sh` configura una memoria virtual de alto rendimiento combinando:
+
+- **ZSWAP**: caché de swap comprimida en RAM — las páginas se comprimen antes de llegar al disco, reduciendo las escrituras en el NVMe y mejorando la latencia.
+- **Swap file en NVMe**: respaldo en disco mucho más rápido que SD o USB.
+- **Parámetros sysctl** ajustados para 4 GB de RAM.
+
+> Este script está diseñado para **Raspberry Pi 5 con disco NVMe**. Funciona en otras configuraciones, pero el beneficio es menor con SD o USB.
+
+**Uso a través del instalador (con los valores por defecto: 4G, swappiness=45):**
+
+```bash
+sudo ./install.sh --only configurar_swap_zswap
+```
+
+**Uso directo con opciones personalizadas:**
+
+```bash
+# Swap de 2 GB con swappiness más conservador
+sudo ./scripts/40-maintenance/configurar_swap_zswap.sh --swap-size 2G --swappiness 30
+
+# Simular sin aplicar cambios
+sudo ./scripts/40-maintenance/configurar_swap_zswap.sh --dry-run
+
+# Deshacer todos los cambios y restaurar la configuración anterior
+sudo ./scripts/40-maintenance/configurar_swap_zswap.sh --rollback
+```
+
+> **Después de ejecutarlo, reinicia la Raspberry Pi** para que ZSWAP se active en el kernel:
+> ```bash
+> sudo reboot
+> ```
+> Tras reiniciar, verifica que todo funciona:
+> ```bash
+> grep -r . /sys/module/zswap/parameters
+> swapon --show && free -h
+> ```
+
+**¿Qué hace exactamente?**
+
+| Paso | Acción |
+| :--- | :--- |
+| 1 | Desactiva `dphys-swapfile` (el gestor de swap por defecto de Raspberry Pi OS) |
+| 2 | Crea `/swapfile` con el tamaño indicado y lo activa |
+| 3 | Añade la entrada a `/etc/fstab` para que se monte al arrancar |
+| 4 | Añade parámetros ZSWAP a `/boot/firmware/cmdline.txt` |
+| 5 | Crea `/etc/sysctl.d/99-swap-optimization.conf` con `vm.swappiness` y dirty ratios |
+
+Antes de modificar cualquier fichero, hace un backup completo en `/var/log/confiraspa/backups/`. Si algo sale mal, `--rollback` restaura el estado original.
 
 ---
 

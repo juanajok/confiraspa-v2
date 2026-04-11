@@ -188,6 +188,7 @@ declare -a STAGES=(
     "optional|scripts/30-services/webmin.sh"
 
     # --- 40 MAINTENANCE ---
+    "optional|scripts/40-maintenance/configurar_swap_zswap.sh"
     "optional|scripts/40-maintenance/cron.sh"
     "optional|scripts/40-maintenance/logrotate.sh"
     "optional|scripts/40-maintenance/fix_permissions.sh"
