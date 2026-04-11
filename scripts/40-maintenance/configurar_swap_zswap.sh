@@ -5,7 +5,14 @@
 #
 # Parte del framework Confiraspa
 # Autor: Juanjo (asistido por Claude)
-# Versión: 3.0 — peer review aplicado
+# Versión: 5.0 — soporte initramfs para carga temprana de módulos,
+#                 fallback a built-in si no hay vía segura de carga
+#
+# Lógica de selección de compresor/zpool:
+#   1. Si el módulo es built-in → se usa directamente (sin dependencias)
+#   2. Si es loadable + initramfs activo → se inyecta en initramfs
+#   3. Si es loadable + NO hay initramfs → se descarta y se usa el fallback
+#      built-in (activar initramfs es demasiado invasivo para un script de swap)
 #
 # Uso (a través del instalador):
 #   sudo ./install.sh --only configurar_swap_zswap
@@ -43,6 +50,9 @@ readonly SWAPFILE_PATH="/swapfile"
 readonly SYSCTL_CONF="/etc/sysctl.d/99-swap-optimization.conf"
 readonly FSTAB_PATH="/etc/fstab"
 readonly SWAP_BACKUP_BASE="/var/log/confiraspa/backups"
+readonly INITRAMFS_MODULES="/etc/initramfs-tools/modules"
+readonly CONFIRASPA_INITRAMFS_MARKER="# --- BEGIN CONFIRASPA ZSWAP ---"
+readonly CONFIRASPA_INITRAMFS_MARKER_END="# --- END CONFIRASPA ZSWAP ---"
 
 # Valores por defecto (sobreescribibles con --swap-size / --swappiness)
 readonly DEFAULT_SWAP_SIZE="4G"
@@ -65,6 +75,10 @@ CMDLINE_PATH="/boot/firmware/cmdline.txt"
 # Calculadas en comprobar_modulos_kernel — vacías hasta entonces
 ZSWAP_COMPRESSOR=""
 ZSWAP_ZPOOL=""
+# Módulos que requieren inyección en initramfs para carga temprana
+MODULES_INITRAMFS=()
+# true si el sistema tiene initramfs habilitado y funcional
+INITRAMFS_DISPONIBLE=false
 
 # ===========================================================================
 # HANDLERS
@@ -132,6 +146,12 @@ Uso: sudo ${SCRIPT_NAME} [OPCIONES]
 
 Configura swap óptimo (ZSWAP + Swap File) para Raspberry Pi 5 con NVMe.
 
+Estrategia de selección de compresor/zpool:
+  - Prefiere módulos built-in (no dependen de nada para arrancar).
+  - Si el módulo preferido es loadable y el sistema tiene initramfs activo,
+    lo inyecta en initramfs para carga temprana.
+  - Si no hay initramfs, cae al módulo built-in (lzo para compresor).
+
 Opciones:
   --swap-size SIZE    Tamaño del swap file (defecto: ${DEFAULT_SWAP_SIZE})
                       Formato: NúmeroUnidad, ej: 4G, 2G, 512M
@@ -150,12 +170,91 @@ EOF
 }
 
 # ===========================================================================
+# DETECCIÓN DE MÓDULOS DEL KERNEL
+# ===========================================================================
+
+# Comprueba si un módulo está disponible, ya sea built-in o como .ko loadable.
+# Retorna 0 si está disponible, 1 si no.
+# Escribe a stdout: "builtin", "loadable", o "absent".
+modulo_disponible() {
+    local modulo="$1"
+    local kernel_version
+    kernel_version="$(uname -r)"
+    local builtin_file="/lib/modules/${kernel_version}/modules.builtin"
+
+    # 1. ¿Está built-in en el kernel?
+    # modules.builtin lista rutas como kernel/crypto/zstd.ko — buscamos el nombre
+    if [[ -f "${builtin_file}" ]] && grep -q "/${modulo}\.ko" "${builtin_file}" 2>/dev/null; then
+        echo "builtin"
+        return 0
+    fi
+
+    # 2. ¿Está ya cargado en el kernel en ejecución?
+    if grep -qw "^${modulo}" /proc/modules 2>/dev/null; then
+        echo "loadable"
+        return 0
+    fi
+
+    # 3. ¿Existe como módulo .ko cargable?
+    if modprobe -n -q "${modulo}" 2>/dev/null; then
+        echo "loadable"
+        return 0
+    fi
+
+    echo "absent"
+    return 1
+}
+
+# Comprueba si initramfs está activo en el sistema.
+# RPi OS no usa initramfs por defecto — solo está activo si:
+#   1. Existe /etc/initramfs-tools/ (herramientas instaladas)
+#   2. config.txt tiene una línea 'initramfs' que lo carga
+#   3. Existe al menos un archivo initramfs en /boot/firmware/
+comprobar_initramfs() {
+    log_info "=== Comprobación de initramfs ==="
+
+    INITRAMFS_DISPONIBLE=false
+
+    # ¿Están instaladas las herramientas?
+    if [[ ! -d /etc/initramfs-tools ]]; then
+        log_info "initramfs-tools no está instalado."
+        return 0
+    fi
+
+    if ! command -v update-initramfs &>/dev/null; then
+        log_info "update-initramfs no disponible."
+        return 0
+    fi
+
+    # ¿Existe al menos un initramfs generado?
+    local initramfs_count
+    initramfs_count="$(find /boot/firmware/ /boot/ -maxdepth 1 -name 'initrd*' -o -name 'initramfs*' 2>/dev/null | wc -l)"
+    if [[ "$initramfs_count" -eq 0 ]]; then
+        log_info "No se encontraron imágenes initramfs en /boot/firmware/ ni /boot/."
+        log_info "initramfs no está activo en este sistema."
+        return 0
+    fi
+
+    # ¿config.txt lo referencia?
+    local config_txt="/boot/firmware/config.txt"
+    if [[ ! -f "$config_txt" ]]; then
+        config_txt="/boot/config.txt"
+    fi
+
+    if [[ -f "$config_txt" ]] && grep -qi '^initramfs\b' "$config_txt" 2>/dev/null; then
+        INITRAMFS_DISPONIBLE=true
+        log_info "initramfs activo: herramientas instaladas, imagen presente, config.txt lo carga."
+    else
+        log_info "initramfs-tools instalado e imagen presente, pero config.txt no lo carga."
+        log_info "No se activará initramfs automáticamente (demasiado invasivo)."
+    fi
+}
+
+# ===========================================================================
 # RESOLUCIÓN DE RUTAS
 # ===========================================================================
 
 resolver_cmdline_path() {
-    # Resuelve la ruta real de cmdline.txt ANTES de hacer backup o modificar.
-    # Así, backup, implementación y rollback usan siempre la misma ruta.
     if [[ -f "${CMDLINE_PATH}" ]]; then
         log_info "cmdline.txt encontrado en: ${CMDLINE_PATH}"
         return 0
@@ -237,30 +336,91 @@ comprobar_modulos_kernel() {
         log_info "ZSWAP no está cargado actualmente (se configurará en cmdline.txt)"
     fi
 
-    # Elegir compresor — zstd es más eficiente que lzo en RPi 5 (Cortex-A76)
-    local compressor_elegido="lzo"
-    if grep -qw zstd /proc/crypto 2>/dev/null; then
-        compressor_elegido="zstd"
-        log_info "Compresor zstd: disponible (preferido)"
-    elif modprobe -n -q zstd 2>/dev/null; then
-        compressor_elegido="zstd"
-        log_info "Compresor zstd: disponible como módulo"
-    else
-        log_warning "Compresor zstd NO disponible. Se usará lzo como fallback."
+    MODULES_INITRAMFS=()
+
+    # --- Elegir compresor ---
+    # Lógica de decisión:
+    #   zstd built-in         → usar zstd (caso ideal)
+    #   zstd loadable + initramfs → usar zstd, inyectar en initramfs
+    #   zstd loadable sin initramfs → caer a lzo (built-in, sin race condition)
+    #   zstd absent           → caer a lzo
+    local compressor_elegido=""
+    local compressor_estado
+    compressor_estado="$(modulo_disponible zstd)" || true
+
+    case "${compressor_estado}" in
+        builtin)
+            compressor_elegido="zstd"
+            log_info "Compresor zstd: built-in en el kernel (ideal, sin dependencias de arranque)"
+            ;;
+        loadable)
+            if [[ "${INITRAMFS_DISPONIBLE}" == true ]]; then
+                compressor_elegido="zstd"
+                MODULES_INITRAMFS+=("zstd")
+                log_info "Compresor zstd: loadable. Se inyectará en initramfs para carga temprana."
+            else
+                compressor_elegido="lzo"
+                log_warning "Compresor zstd existe como módulo pero NO hay initramfs activo."
+                log_warning "Sin initramfs, el kernel no puede cargar zstd a tiempo al arrancar"
+                log_warning "(race condition: cmdline.txt se procesa antes de montar el rootfs)."
+                log_warning "Usando lzo (built-in) como compresor. Rendimiento correcto, sin riesgo."
+            fi
+            ;;
+        *)
+            compressor_elegido="lzo"
+            log_info "Compresor zstd NO disponible. Usando lzo (built-in)."
+            ;;
+    esac
+
+    # --- Elegir zpool ---
+    # Orden de preferencia: z3fold (ratio 3:1) > zsmalloc > zbud (ratio 2:1)
+    # Misma lógica: solo se usa un módulo loadable si hay initramfs para cargarlo.
+    local zpool_elegido=""
+    local candidato estado
+
+    for candidato in z3fold zsmalloc zbud; do
+        estado="$(modulo_disponible "${candidato}")" || true
+        case "${estado}" in
+            builtin)
+                zpool_elegido="${candidato}"
+                log_info "Zpool ${candidato}: built-in en el kernel (ideal)"
+                break
+                ;;
+            loadable)
+                if [[ "${INITRAMFS_DISPONIBLE}" == true ]]; then
+                    zpool_elegido="${candidato}"
+                    MODULES_INITRAMFS+=("${candidato}")
+                    log_info "Zpool ${candidato}: loadable. Se inyectará en initramfs."
+                    break
+                else
+                    log_info "Zpool ${candidato}: loadable pero sin initramfs — descartado."
+                fi
+                ;;
+            *)
+                log_info "Zpool ${candidato}: no disponible."
+                ;;
+        esac
+    done
+
+    if [[ -z "${zpool_elegido}" ]]; then
+        log_error "No se encontró ningún zpool disponible (z3fold, zsmalloc, zbud)"
+        log_error "ni built-in ni cargable vía initramfs."
+        log_error "El kernel no soporta zswap en esta configuración."
+        exit 1
     fi
 
-    # Elegir zpool — z3fold (ratio 3:1) es mejor que zbud (ratio 2:1)
-    local zpool_elegido="zbud"
-    if modprobe -n -q z3fold 2>/dev/null; then
-        zpool_elegido="z3fold"
-        log_info "Zpool z3fold: disponible (preferido, ratio 3:1)"
-    else
-        log_warning "z3fold NO disponible. Se usará zbud (ratio 2:1)."
-    fi
+    ZSWAP_COMPRESSOR="${compressor_elegido}"
+    ZSWAP_ZPOOL="${zpool_elegido}"
 
-    ZSWAP_COMPRESSOR="$compressor_elegido"
-    ZSWAP_ZPOOL="$zpool_elegido"
-    log_info "Configuración ZSWAP elegida: compressor=${ZSWAP_COMPRESSOR}, zpool=${ZSWAP_ZPOOL}"
+    log_info "─── Configuración ZSWAP final ───"
+    log_info "  compressor = ${ZSWAP_COMPRESSOR}"
+    log_info "  zpool      = ${ZSWAP_ZPOOL}"
+    if [[ ${#MODULES_INITRAMFS[@]} -gt 0 ]]; then
+        log_info "  initramfs  = ${MODULES_INITRAMFS[*]} (se inyectarán)"
+    else
+        log_info "  initramfs  = no necesario (todo built-in)"
+    fi
+    log_info "────────────────────────────────"
 }
 
 comprobar_swap_actual() {
@@ -297,6 +457,11 @@ hacer_backup() {
             "Backup: ${SYSCTL_CONF}"
     fi
 
+    if [[ -f "${INITRAMFS_MODULES}" ]]; then
+        execute_cmd "cp -p '${INITRAMFS_MODULES}' '${backup_dir}/$(basename "${INITRAMFS_MODULES}")'" \
+            "Backup: ${INITRAMFS_MODULES}"
+    fi
+
     # Estado actual — solo informativo, nunca falla.
     # Justificación del || true: estos comandos solo capturan estado para diagnóstico;
     # un fallo aquí (ej: no hay swap activo) no debe abortar el script.
@@ -324,6 +489,7 @@ ejecutar_rollback() {
     log_info "Restaurando desde: ${ultimo_backup}"
 
     local rc=0
+    local necesita_initramfs_update=false
 
     # Desactivar swap actual antes de restaurar fstab
     if swapon --show --noheadings | grep -q "${SWAPFILE_PATH}"; then
@@ -344,6 +510,14 @@ ejecutar_rollback() {
                 "Restaurando: ${archivo}"
         fi
     done
+
+    # Restaurar initramfs modules si había backup
+    backup_file="${ultimo_backup}/$(basename "${INITRAMFS_MODULES}")"
+    if [[ -f "$backup_file" ]]; then
+        execute_cmd "cp -p '${backup_file}' '${INITRAMFS_MODULES}'" \
+            "Restaurando: ${INITRAMFS_MODULES}"
+        necesita_initramfs_update=true
+    fi
 
     # RISK: elimina /swapfile. Mitigado: solo si no constaba en el estado
     # previo guardado al inicio, lo que prueba que lo creó este script.
@@ -373,7 +547,17 @@ ejecutar_rollback() {
         log_warning "sysctl --system falló (exit ${rc}) — los cambios se aplicarán al reiniciar."
     fi
 
-    log_success "Rollback completado. Reinicia para que cmdline.txt surta efecto."
+    # Regenerar initramfs si se restauró el archivo de módulos
+    if [[ "${necesita_initramfs_update}" == true ]] && command -v update-initramfs &>/dev/null; then
+        log_info "Regenerando initramfs para restaurar estado previo..."
+        rc=0
+        execute_cmd "update-initramfs -u -k all" "Regenerando initramfs" || rc=$?
+        if [[ $rc -ne 0 ]]; then
+            log_warning "update-initramfs falló (exit ${rc}) — la restauración se completará al reinstalar el kernel."
+        fi
+    fi
+
+    log_success "Rollback completado. Reinicia para que los cambios surtan efecto."
     exit 0
 }
 
@@ -486,8 +670,6 @@ configurar_zswap_cmdline() {
     local temp_dir="$1"
     log_info "=== Paso 4: Configurar ZSWAP en cmdline.txt ==="
 
-    # CMDLINE_PATH ya fue resuelto en resolver_cmdline_path() al inicio de main.
-    # Backup y rollback usan la misma variable, garantizando coherencia.
     local cmdline_actual
     cmdline_actual="$(cat "${CMDLINE_PATH}")"
 
@@ -510,9 +692,77 @@ configurar_zswap_cmdline() {
         "Actualizando cmdline.txt (ZSWAP: compressor=${ZSWAP_COMPRESSOR}, zpool=${ZSWAP_ZPOOL})"
 }
 
+configurar_initramfs() {
+    local temp_dir="$1"
+    log_info "=== Paso 5: Configurar initramfs para carga temprana de módulos ==="
+
+    # --- Caso 1: No hay módulos que inyectar ---
+    if [[ ${#MODULES_INITRAMFS[@]} -eq 0 ]]; then
+        log_info "Todos los módulos zswap son built-in. No se necesita initramfs."
+        # Limpiar bloque Confiraspa anterior si existía
+        if [[ -f "${INITRAMFS_MODULES}" ]] && \
+           grep -q "${CONFIRASPA_INITRAMFS_MARKER}" "${INITRAMFS_MODULES}" 2>/dev/null; then
+            log_info "Eliminando bloque Confiraspa anterior de ${INITRAMFS_MODULES}."
+            local cleaned="${temp_dir}/initramfs_modules.cleaned"
+            sed "/${CONFIRASPA_INITRAMFS_MARKER}/,/${CONFIRASPA_INITRAMFS_MARKER_END}/d" \
+                "${INITRAMFS_MODULES}" > "${cleaned}"
+            execute_cmd "cp '${cleaned}' '${INITRAMFS_MODULES}'" \
+                "Limpiando bloque Confiraspa de initramfs modules"
+            execute_cmd "update-initramfs -u -k all" \
+                "Regenerando initramfs (limpieza)"
+        fi
+        return 0
+    fi
+
+    # --- Caso 2: initramfs no disponible ---
+    if [[ "${INITRAMFS_DISPONIBLE}" != true ]]; then
+        # Esto no debería ocurrir: comprobar_modulos_kernel ya descarta módulos
+        # loadable si no hay initramfs. Pero por seguridad:
+        log_warning "Se necesita initramfs para ${MODULES_INITRAMFS[*]} pero no está disponible."
+        log_warning "Los módulos seleccionados deberían ser built-in — revisa la lógica."
+        return 0
+    fi
+
+    # --- Caso 3: Inyectar módulos en initramfs ---
+    log_info "Inyectando módulos en initramfs: ${MODULES_INITRAMFS[*]}"
+
+    # Construir el bloque con marcadores para idempotencia
+    local bloque="${temp_dir}/initramfs_bloque.txt"
+    {
+        echo "${CONFIRASPA_INITRAMFS_MARKER}"
+        printf '%s\n' "${MODULES_INITRAMFS[@]}"
+        echo "${CONFIRASPA_INITRAMFS_MARKER_END}"
+    } > "${bloque}"
+
+    # Preparar el archivo final: base sin bloque anterior + bloque nuevo
+    local candidate="${temp_dir}/initramfs_modules.candidate"
+    if [[ -f "${INITRAMFS_MODULES}" ]]; then
+        # Eliminar bloque anterior si existe (idempotencia)
+        sed "/${CONFIRASPA_INITRAMFS_MARKER}/,/${CONFIRASPA_INITRAMFS_MARKER_END}/d" \
+            "${INITRAMFS_MODULES}" > "${candidate}"
+    else
+        touch "${candidate}"
+    fi
+    cat "${bloque}" >> "${candidate}"
+
+    if [[ -f "${INITRAMFS_MODULES}" ]] && cmp -s "${INITRAMFS_MODULES}" "${candidate}"; then
+        log_info "${INITRAMFS_MODULES} sin cambios."
+        return 0
+    fi
+
+    execute_cmd "cp '${candidate}' '${INITRAMFS_MODULES}'" \
+        "Actualizando ${INITRAMFS_MODULES} con módulos zswap"
+
+    log_info "Regenerando initramfs (esto puede tardar 1-2 minutos)..."
+    execute_cmd "update-initramfs -u -k all" \
+        "Regenerando initramfs con módulos: ${MODULES_INITRAMFS[*]}"
+
+    log_success "initramfs actualizado con: ${MODULES_INITRAMFS[*]}"
+}
+
 configurar_sysctl() {
     local temp_dir="$1"
-    log_info "=== Paso 5: Configurar sysctl (swappiness y dirty ratios) ==="
+    log_info "=== Paso 6: Configurar sysctl (swappiness y dirty ratios) ==="
 
     local candidate="${temp_dir}/sysctl.candidate"
     cat > "${candidate}" <<SYSCTL
@@ -569,6 +819,13 @@ verificar_resultado() {
 
     log_info "vm.swappiness actual: $(sysctl -n vm.swappiness)"
 
+    if [[ ${#MODULES_INITRAMFS[@]} -gt 0 ]]; then
+        log_info "Módulos inyectados en initramfs: ${MODULES_INITRAMFS[*]}"
+    fi
+
+    log_info "cmdline.txt final:"
+    cat "${CMDLINE_PATH}" >&2
+
     log_warning "ZSWAP requiere REINICIO para activarse — ejecuta: sudo reboot"
     log_info "Tras reiniciar, verifica con:"
     log_info "  grep -r . /sys/module/zswap/parameters"
@@ -594,11 +851,12 @@ main() {
 
     temp_dir="$(mktemp -d)"
 
-    # Resolver la ruta real de cmdline.txt ANTES de backup y rollback,
-    # para que ambos usen la misma variable CMDLINE_PATH.
+    # Resolver rutas y capacidades del sistema ANTES de backup y rollback,
+    # para que todo el script opere sobre los mismos valores.
     resolver_cmdline_path
+    comprobar_initramfs
 
-    # Rollback inmediato si se pidió — no necesita backup previo
+    # Rollback inmediato si se pidió — no necesita comprobaciones de hardware
     if [[ "${ROLLBACK}" == "true" ]]; then
         ejecutar_rollback
     fi
@@ -622,6 +880,7 @@ main() {
     crear_swapfile
     configurar_fstab "${temp_dir}"
     configurar_zswap_cmdline "${temp_dir}"
+    configurar_initramfs "${temp_dir}"
     configurar_sysctl "${temp_dir}"
 
     if [[ "${DRY_RUN}" != "true" ]]; then
