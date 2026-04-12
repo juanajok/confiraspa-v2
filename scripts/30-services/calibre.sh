@@ -4,16 +4,11 @@
 #
 # MODELO A — GUI con servidor integrado:
 #   - Calibre GUI arranca con autostart al iniciar sesión gráfica.
-#   - El Content Server se levanta DENTRO de la GUI (server.py: autostart=True).
+#   - El Content Server se activa DENTRO de la GUI (gui.py.json: autolaunch_server).
 #   - No hay servicio systemd independiente (evita conflicto SQLite en metadata.db).
-#   - El servidor web funciona mientras la sesión gráfica esté activa.
 #
-# ¿Por qué este modelo? SQLite solo permite un escritor a la vez. Si GUI y
-# calibre-server corren simultáneamente, uno falla al guardar. Con el servidor
-# integrado, un solo proceso gestiona todo: edición de metadatos + web UI.
-#
-# Acceso web: http://IP:8083 (mientras la GUI esté abierta)
-# Acceso GUI: VNC/XRDP al escritorio del usuario
+# WIZARD BYPASS: Inyecta installation_uuid + language + library_path en global.py.
+# CONTENT SERVER: Modifica o crea gui.py.json (no server.py, que Calibre ignora).
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -49,9 +44,8 @@ readonly MEDIA_GROUP="${ARR_GROUP:-media}"
 readonly CALIBRE_PORT="${CALIBRE_PORT:-8083}"
 readonly LIBRARY_PATH="${DIR_BOOKS:-/media/WDElements/Libros}"
 readonly INSTALLER_URL="https://download.calibre-ebook.com/linux-installer.sh"
-
-# Servicio standalone que puede existir de una instalación anterior
 readonly LEGACY_SERVICE="calibre-server"
+readonly MIN_DISK_SPACE_MB=512
 
 # ===========================================================================
 # FUNCIONES LOCALES
@@ -61,7 +55,6 @@ on_error() {
     local exit_code="${1:-1}"
     local line_no="${BASH_LINENO[0]:-unknown}"
     local source_file="${BASH_SOURCE[1]:-${SCRIPT_NAME}}"
-
     log_error "Error en '$(basename "${source_file}")' (línea ${line_no}, exit code ${exit_code})."
 }
 
@@ -77,25 +70,13 @@ parse_args() {
     export DRY_RUN
 }
 
-require_system_commands() {
-    local cmd
-    for cmd in "$@"; do
-        if ! command -v "${cmd}" &>/dev/null; then
-            log_error "Comando requerido del sistema no disponible: ${cmd}"
-            exit 1
-        fi
-    done
-}
-
 # ===========================================================================
 # FUNCIONES DE NEGOCIO
 # ===========================================================================
 
-# --- Verificar arquitectura ---
 validate_architecture() {
     local arch
     arch=$(uname -m)
-
     if [[ "${arch}" != "aarch64" && "${arch}" != "x86_64" ]]; then
         log_error "Arquitectura no soportada: ${arch}. Calibre requiere 64 bits."
         exit 1
@@ -103,49 +84,47 @@ validate_architecture() {
     log_info "Arquitectura: ${arch}"
 }
 
-# --- Instalar dependencias Qt/X11 ---
+# --- Validar variables del .env necesarias para este script ---
+validate_env_vars() {
+    validate_var "SYS_USER" "${SYS_USER:-}"
+    validate_var "ARR_GROUP" "${ARR_GROUP:-}"
+    # DIR_BOOKS es opcional — si no existe, usa el default
+    # CALIBRE_PORT es opcional — default 8083
+}
+
 install_dependencies() {
     log_info "Instalando dependencias..."
-
     local deps=(
         wget python3 xz-utils xdg-utils
         libxcb-cursor0 libxcb-xinerama0 libxkbcommon-x11-0
         libegl1 libopengl0 libgl1 libxcomposite1
     )
-
     local dep
     for dep in "${deps[@]}"; do
         ensure_package "${dep}"
     done
 }
 
-# --- Crear usuario de sistema para permisos de la biblioteca ---
-# Aunque la GUI corre como GUI_USER, el usuario 'calibre' se usa como
-# propietario de la biblioteca para que fix_permissions.sh lo gestione
-# de forma consistente con los demás servicios *Arr.
 ensure_calibre_user() {
     if id "${CALIBRE_USER}" &>/dev/null; then
         log_info "Usuario '${CALIBRE_USER}' ya existe."
     else
         if [[ "${DRY_RUN}" == "true" ]]; then
             log_warning "[DRY-RUN] Usuario '${CALIBRE_USER}' no existe (normal en simulación)."
-            execute_cmd "useradd --system --shell /usr/sbin/nologin --home-dir /var/lib/calibre '${CALIBRE_USER}'" \
+            execute_cmd "useradd --system --shell /usr/sbin/nologin -m --home-dir /var/lib/calibre '${CALIBRE_USER}'" \
                 "Creando usuario: ${CALIBRE_USER}"
             return 0
         fi
-
-        execute_cmd "useradd --system --shell /usr/sbin/nologin --home-dir /var/lib/calibre '${CALIBRE_USER}'" \
+        execute_cmd "useradd --system --shell /usr/sbin/nologin -m --home-dir /var/lib/calibre '${CALIBRE_USER}'" \
             "Creando usuario: ${CALIBRE_USER}"
     fi
 
-    # Añadir al grupo multimedia
     if id "${CALIBRE_USER}" &>/dev/null && \
        ! id -nG "${CALIBRE_USER}" 2>/dev/null | tr ' ' '\n' | grep -qx "${MEDIA_GROUP}"; then
         execute_cmd "usermod -aG '${MEDIA_GROUP}' '${CALIBRE_USER}'" \
             "Añadiendo ${CALIBRE_USER} al grupo ${MEDIA_GROUP}"
     fi
 
-    # GUI_USER también necesita pertenecer al grupo media para escribir en la biblioteca
     if id "${GUI_USER}" &>/dev/null && \
        ! id -nG "${GUI_USER}" 2>/dev/null | tr ' ' '\n' | grep -qx "${MEDIA_GROUP}"; then
         execute_cmd "usermod -aG '${MEDIA_GROUP}' '${GUI_USER}'" \
@@ -153,7 +132,6 @@ ensure_calibre_user() {
     fi
 }
 
-# --- Instalar Calibre desde el instalador oficial ---
 install_calibre() {
     if [[ -x "${CALIBRE_GUI_BINARY}" ]]; then
         log_info "Calibre ya instalado en ${INSTALL_DIR}."
@@ -167,17 +145,25 @@ install_calibre() {
         return 0
     fi
 
+    # Comprobar espacio antes de descargar (~500MB necesarios)
+    if ! check_disk_space "${BASE_DIR%/*}" "${MIN_DISK_SPACE_MB}"; then
+        log_error "Espacio insuficiente para instalar Calibre (mínimo ${MIN_DISK_SPACE_MB}MB)."
+        exit 1
+    fi
+
     local temp_dir
     temp_dir="$(mktemp -d)"
-    local installer="${temp_dir}/calibre-installer.sh"
 
+    # SECURITY: Descarga vía download_secure (retry + verificación).
+    # No se usa SHA256 porque el instalador cambia con cada release.
+    local installer="${temp_dir}/calibre-installer.sh"
     if ! download_secure "${INSTALLER_URL}" "${installer}"; then
         log_error "Fallo al descargar el instalador de Calibre."
         rm -rf "${temp_dir}"
         exit 1
     fi
 
-    mkdir -p "${BASE_DIR}"
+    execute_cmd "mkdir -p '${BASE_DIR}'" "Creando directorio de instalación"
 
     log_info "Ejecutando instalador (puede tardar varios minutos en RPi)..."
     if sh "${installer}" install_dir="${BASE_DIR}" isolated=y >> "${LOG_FILE:-/dev/null}" 2>&1; then
@@ -191,14 +177,13 @@ install_calibre() {
     rm -rf "${temp_dir}"
 
     if [[ ! -x "${CALIBRE_GUI_BINARY}" ]]; then
-        log_error "Binario no encontrado tras la instalación: ${CALIBRE_GUI_BINARY}"
+        log_error "Binario no encontrado: ${CALIBRE_GUI_BINARY}"
         exit 1
     fi
 
     log_success "Calibre instalado en ${INSTALL_DIR}."
 }
 
-# --- Configurar biblioteca (detectar existente o crear nueva) ---
 initialize_library() {
     log_info "Verificando biblioteca: ${LIBRARY_PATH}"
 
@@ -216,19 +201,19 @@ initialize_library() {
         fi
 
         if [[ -x "${CALIBREDB_BINARY}" ]]; then
-            if "${CALIBREDB_BINARY}" add --with-library "${LIBRARY_PATH}" --empty >> "${LOG_FILE:-/dev/null}" 2>&1; then
+            # calibredb puede fallar legítimamente en primera instalación si faltan dependencias Qt. 
+            # Ejecutamos con sudo -u para que metadata.db nazca con permisos correctos.
+            if sudo -u "${GUI_USER}" "${CALIBREDB_BINARY}" add --with-library "${LIBRARY_PATH}" --empty >> "${LOG_FILE:-/dev/null}" 2>&1; then
                 log_success "Biblioteca inicializada."
             else
-                log_warning "calibredb no pudo inicializar (normal en primera instalación)."
-                log_warning "Se creará automáticamente al abrir Calibre GUI."
+                local rc=$?
+                log_warning "calibredb falló (exit code: ${rc}). Se creará al abrir la GUI."
             fi
         else
             log_warning "calibredb no disponible. Biblioteca se inicializará al primer uso."
         fi
     fi
 
-    # Propietario del directorio y metadata.db — GUI_USER porque la GUI escribe aquí.
-    # Sin -R: fix_permissions.sh cubre el mantenimiento recursivo periódico.
     execute_cmd "chown '${GUI_USER}:${MEDIA_GROUP}' '${LIBRARY_PATH}'" \
         "Propietario de la biblioteca: ${GUI_USER}"
 
@@ -238,106 +223,145 @@ initialize_library() {
     fi
 }
 
-# --- Deshabilitar servicio standalone si existe ---
-# Si viene de una instalación anterior con Modelo B (systemd), pararlo
-# para que no compita con la GUI por metadata.db.
+# RISK: Deshabilita y elimina el servicio calibre-server standalone.
+# Si se re-ejecuta en un sistema que depende de Modelo B (headless 24/7),
+# el Content Server dejará de funcionar hasta que se abra la GUI.
+# Mitigación: el servicio se puede restaurar volviendo a ejecutar el script
+# en Modelo B, o manualmente con systemctl enable calibre-server.
 disable_legacy_service() {
     if systemctl is-enabled --quiet "${LEGACY_SERVICE}" 2>/dev/null; then
-        log_warning "Servicio standalone '${LEGACY_SERVICE}' detectado. Deshabilitando (Modelo A: GUI integrada)."
+        log_warning "Servicio standalone '${LEGACY_SERVICE}' detectado. Deshabilitando."
 
         if check_service_active "${LEGACY_SERVICE}"; then
-            execute_cmd "systemctl stop '${LEGACY_SERVICE}'" \
-                "Deteniendo ${LEGACY_SERVICE}"
+            execute_cmd "systemctl stop '${LEGACY_SERVICE}'" "Deteniendo ${LEGACY_SERVICE}"
         fi
-
-        execute_cmd "systemctl disable '${LEGACY_SERVICE}'" \
-            "Deshabilitando ${LEGACY_SERVICE}"
-
-        log_info "El Content Server ahora se gestiona desde la GUI de Calibre."
+        execute_cmd "systemctl disable '${LEGACY_SERVICE}'" "Deshabilitando ${LEGACY_SERVICE}"
     fi
 
-    # Eliminar unit file si existe (limpieza)
     local service_file="/etc/systemd/system/${LEGACY_SERVICE}.service"
     if [[ -f "${service_file}" ]]; then
-        execute_cmd "rm -f '${service_file}'" \
-            "Eliminando unit file legacy: ${service_file}"
+        # RISK: Eliminación del unit file. Si el usuario necesita volver a
+        # Modelo B, deberá regenerarlo ejecutando la variante del script.
+        execute_cmd "rm -f '${service_file}'" "Eliminando unit file legacy"
         execute_cmd "systemctl daemon-reload" "Recargando systemd"
     fi
 }
 
-# --- Pre-configurar Content Server dentro de la GUI ---
-# Escribe server.py para que al abrir Calibre GUI, levante el Content Server
-# automáticamente en el puerto configurado. Así un solo proceso (la GUI)
-# gestiona metadata.db sin conflictos de bloqueo SQLite.
+# --- Activar Content Server integrado en la GUI ---
+# Calibre almacena autolaunch_server en gui.py.json (no en server.py).
 preseed_server_config() {
     local home_dir
     home_dir=$(getent passwd "${GUI_USER}" 2>/dev/null | cut -d: -f6) || home_dir="/home/${GUI_USER}"
     local config_dir="${home_dir}/.config/calibre"
-    local server_config="${config_dir}/server.py"
-
-    # Contenido esperado
-    local expected_content
-    expected_content=$(cat <<EOF
-# Generado por Confiraspa — Content Server integrado en GUI
-autostart = True
-port = ${CALIBRE_PORT}
-EOF
-    )
-
-    # Idempotencia: si ya tiene el contenido correcto, no tocar
-    if [[ -f "${server_config}" ]] && \
-       grep -q "autostart = True" "${server_config}" && \
-       grep -q "port = ${CALIBRE_PORT}" "${server_config}"; then
-        log_info "Content Server ya configurado en GUI (puerto ${CALIBRE_PORT})."
-        return 0
-    fi
+    local gui_json="${config_dir}/gui.py.json"
 
     execute_cmd "install -d -o '${GUI_USER}' -g '${GUI_USER}' -m 755 '${config_dir}'" \
         "Directorio de configuración Calibre"
 
-    if [[ "${DRY_RUN}" == "true" ]]; then
-        log_info "[DRY-RUN] Escribiría server.py con autostart=True, port=${CALIBRE_PORT}"
+    # Idempotencia: ya activado, no tocar
+    if [[ -f "${gui_json}" ]] && grep -q '"autolaunch_server": true' "${gui_json}"; then
+        log_info "Content Server ya activado en GUI (puerto ${CALIBRE_PORT})."
         return 0
     fi
 
-    echo "${expected_content}" > "${server_config}"
-    chown "${GUI_USER}:${GUI_USER}" "${server_config}"
-    chmod 644 "${server_config}"
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "[DRY-RUN] Activaría autolaunch_server en gui.py.json"
+        return 0
+    fi
 
-    log_success "Content Server integrado configurado: autostart en puerto ${CALIBRE_PORT}."
+    if [[ -f "${gui_json}" ]]; then
+        create_backup "${gui_json}"
+        execute_cmd "sed -i 's/\"autolaunch_server\": false/\"autolaunch_server\": true/' '${gui_json}'" \
+            "Activando autolaunch_server en gui.py.json"
+        execute_cmd "chown '${GUI_USER}:${GUI_USER}' '${gui_json}'" \
+            "Propietario de gui.py.json"
+        log_success "Content Server activado (autolaunch_server: true)."
+    else
+        # Primera instalación. Creamos el JSON mínimo para que el servidor arranque.
+        log_info "gui.py.json no existe. Creando configuración inicial..."
+        execute_cmd "echo '{\"autolaunch_server\": true}' > '${gui_json}'" \
+            "Creando gui.py.json con autolaunch_server activo"
+        execute_cmd "chown '${GUI_USER}:${GUI_USER}' '${gui_json}'" \
+            "Propietario de gui.py.json"
+        log_success "Content Server activado en nueva instalación."
+    fi
 }
 
-# --- Pre-configurar ruta de la biblioteca en la GUI ---
-# Evita el wizard de primera ejecución que pregunta dónde están los libros.
+# --- Bypass del Welcome Wizard ---
+# El wizard salta si falta installation_uuid O library_path en global.py.
+# Inyectamos ambos + language para que Calibre arranque directo.
 preseed_gui_config() {
+    log_info "Pre-configurando GUI para saltar el Welcome Wizard..."
+
     local home_dir
     home_dir=$(getent passwd "${GUI_USER}" 2>/dev/null | cut -d: -f6) || home_dir="/home/${GUI_USER}"
     local config_dir="${home_dir}/.config/calibre"
     local config_file="${config_dir}/global.py"
 
-    local expected_line="library_path = u'${LIBRARY_PATH}'"
-
-    if [[ -f "${config_file}" ]] && grep -qF "${expected_line}" "${config_file}"; then
-        log_info "GUI ya apunta a ${LIBRARY_PATH}."
-        return 0
-    fi
-
     execute_cmd "install -d -o '${GUI_USER}' -g '${GUI_USER}' -m 755 '${config_dir}'" \
         "Directorio de configuración GUI"
 
     if [[ "${DRY_RUN}" == "true" ]]; then
-        log_info "[DRY-RUN] Escribiría ruta de biblioteca en global.py"
+        log_info "[DRY-RUN] Escribiría global.py con uuid, language y library_path."
         return 0
     fi
 
-    echo "${expected_line}" > "${config_file}"
-    chown "${GUI_USER}:${GUI_USER}" "${config_file}"
-    chmod 644 "${config_file}"
+    local uuid
+    uuid="$(cat /proc/sys/kernel/random/uuid)"
 
-    log_success "GUI pre-configurada: biblioteca en ${LIBRARY_PATH}"
+    if [[ ! -f "${config_file}" ]]; then
+        # Primera instalación — crear global.py completo
+        local temp_dir
+        temp_dir="$(mktemp -d)"
+        local candidate="${temp_dir}/global.py"
+
+        cat > "${candidate}" <<EOF
+# Generado por Confiraspa — bypass del Welcome Wizard
+installation_uuid = '${uuid}'
+language = 'es'
+library_path = '${LIBRARY_PATH}'
+EOF
+
+        execute_cmd "cp '${candidate}' '${config_file}'" "Creando global.py (wizard bypass)"
+        execute_cmd "chown '${GUI_USER}:${GUI_USER}' '${config_file}'" "Propietario de global.py"
+        execute_cmd "chmod 644 '${config_file}'" "Permisos de global.py"
+        rm -rf "${temp_dir}"
+        log_success "global.py creado (wizard bypass, biblioteca en ${LIBRARY_PATH})."
+    else
+        # El fichero existe — añadir solo las claves que falten
+        create_backup "${config_file}"
+
+        if ! grep -q "^installation_uuid" "${config_file}"; then
+            execute_cmd "bash -c \"echo \\\"installation_uuid = '${uuid}'\\\" >> '${config_file}'\"" \
+                "Añadiendo installation_uuid a global.py"
+        fi
+        if ! grep -q "^library_path" "${config_file}"; then
+            execute_cmd "bash -c \"echo \\\"library_path = '${LIBRARY_PATH}'\\\" >> '${config_file}'\"" \
+                "Añadiendo library_path a global.py"
+        fi
+        if ! grep -q "^language" "${config_file}"; then
+            execute_cmd "bash -c \"echo \\\"language = 'es'\\\" >> '${config_file}'\"" \
+                "Añadiendo language a global.py"
+        fi
+
+        execute_cmd "chown '${GUI_USER}:${GUI_USER}' '${config_file}'" "Propietario de global.py"
+        log_success "global.py actualizado (wizard bypass)."
+    fi
 }
 
-# --- Configurar autostart GUI en el escritorio ---
+# RISK: Elimina server.py que versiones anteriores del script creaban.
+# Este fichero no tiene efecto en Calibre (la configuración real está en
+# gui.py.json). Eliminarlo evita confusión en diagnósticos futuros.
+cleanup_legacy_config() {
+    local home_dir
+    home_dir=$(getent passwd "${GUI_USER}" 2>/dev/null | cut -d: -f6) || home_dir="/home/${GUI_USER}"
+    local legacy_file="${home_dir}/.config/calibre/server.py"
+
+    if [[ -f "${legacy_file}" ]]; then
+        execute_cmd "rm -f '${legacy_file}'" "Eliminando server.py legacy (no funcional)"
+    fi
+}
+
 configure_gui_autostart() {
     log_info "Configurando autostart de Calibre GUI para '${GUI_USER}'..."
 
@@ -352,7 +376,6 @@ configure_gui_autostart() {
     execute_cmd "install -d -o '${GUI_USER}' -g '${GUI_USER}' -m 755 '${autostart_dir}'" \
         "Directorio de autostart"
 
-    # Detectar backend gráfico para Qt
     local exec_line="${CALIBRE_GUI_BINARY} %F"
     if [[ -f /etc/xdg/wayfire.ini ]] || [[ -f /etc/xdg/labwc/rc.xml ]]; then
         exec_line="env QT_QPA_PLATFORM=wayland ${CALIBRE_GUI_BINARY} %F"
@@ -363,8 +386,7 @@ configure_gui_autostart() {
     temp_dir="$(mktemp -d)"
     local candidate="${temp_dir}/calibre-gui.desktop"
 
-    cat > "${candidate}" <<EOF
-[Desktop Entry]
+    cat > "${candidate}" <<EOF[Desktop Entry]
 Version=1.0
 Type=Application
 Name=Calibre (NAS)
@@ -384,19 +406,21 @@ EOF
         return 0
     fi
 
+    # Backup del .desktop si existía
+    if [[ -f "${desktop_file}" ]]; then
+        create_backup "${desktop_file}"
+    fi
+
     execute_cmd "cp '${candidate}' '${desktop_file}'" "Instalando .desktop"
     execute_cmd "chown '${GUI_USER}:${GUI_USER}' '${desktop_file}'" "Propietario .desktop"
     execute_cmd "chmod 644 '${desktop_file}'" "Permisos .desktop"
-
     execute_cmd "cp '${candidate}' '${autostart_file}'" "Configurando autostart"
     execute_cmd "chown '${GUI_USER}:${GUI_USER}' '${autostart_file}'" "Propietario autostart"
 
     rm -rf "${temp_dir}"
-
     log_success "Autostart configurado para ${GUI_USER}."
 }
 
-# --- Post-checks ---
 post_checks() {
     local ip
     ip="$(get_ip_address)"
@@ -405,9 +429,7 @@ post_checks() {
     log_info "  Biblioteca: ${LIBRARY_PATH}"
     log_info "  GUI:        Autostart en escritorio de ${GUI_USER}"
     log_info "  Web UI:     http://${ip}:${CALIBRE_PORT} (activo cuando la GUI esté abierta)"
-    log_info ""
     log_info "  El Content Server arranca automáticamente con la GUI de Calibre."
-    log_info "  Para acceso web 24/7 sin GUI, cambiar a Modelo B (systemd standalone)."
 }
 
 # ===========================================================================
@@ -421,7 +443,8 @@ main() {
 
     # --- 1. Validaciones ---
     validate_root
-    require_system_commands install systemctl id getent awk grep uname
+    require_system_commands install systemctl id getent awk grep uname sed sudo
+    validate_env_vars
     validate_architecture
 
     # --- 2. Dependencias ---
@@ -430,25 +453,28 @@ main() {
     # --- 3. Usuario y grupos ---
     ensure_calibre_user
 
-    # --- 4. Instalación de Calibre ---
+    # --- 4. Instalación ---
     install_calibre
 
-    # --- 5. Biblioteca (detectar existente o crear nueva) ---
+    # --- 5. Biblioteca ---
     initialize_library
 
-    # --- 6. Deshabilitar servicio standalone (si existe de instalación anterior) ---
+    # --- 6. Deshabilitar servicio standalone legacy ---
     disable_legacy_service
 
-    # --- 7. Content Server integrado en GUI (server.py) ---
-    preseed_server_config
+    # --- 7. Limpiar server.py (no funcional) ---
+    cleanup_legacy_config
 
-    # --- 8. Ruta de biblioteca en GUI (global.py) ---
+    # --- 8. Bypass del Welcome Wizard (global.py) ---
     preseed_gui_config
 
-    # --- 9. Autostart GUI ---
+    # --- 9. Content Server integrado (gui.py.json) ---
+    preseed_server_config
+
+    # --- 10. Autostart GUI ---
     configure_gui_autostart
 
-    # --- 10. Resumen ---
+    # --- 11. Resumen ---
     post_checks
 }
 
