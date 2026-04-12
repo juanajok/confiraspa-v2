@@ -386,7 +386,8 @@ configure_gui_autostart() {
     temp_dir="$(mktemp -d)"
     local candidate="${temp_dir}/calibre-gui.desktop"
 
-    cat > "${candidate}" <<EOF[Desktop Entry]
+    cat > "${candidate}" <<EOF
+[Desktop Entry]
 Version=1.0
 Type=Application
 Name=Calibre (NAS)
