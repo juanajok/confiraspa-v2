@@ -10,6 +10,9 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Cron ejecuta con PATH mínimo. Asegurar rutas estándar.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 # ===========================================================================
 # CABECERA UNIVERSAL
 # ===========================================================================
@@ -23,6 +26,11 @@ fi
 
 source "${REPO_ROOT}/lib/utils.sh"
 source "${REPO_ROOT}/lib/validators.sh"
+
+# LOG_FILE para ejecución desde cron
+if [[ -z "${LOG_FILE:-}" ]]; then
+    LOG_FILE="/var/log/cleanup_backups.log"
+fi
 
 # ===========================================================================
 # CONSTANTES
@@ -62,17 +70,6 @@ parse_args() {
     export DRY_RUN
 }
 
-# --- Validar comandos del SO base ---
-require_system_commands() {
-    local cmd
-    for cmd in "$@"; do
-        if ! command -v "${cmd}" &>/dev/null; then
-            log_error "Comando requerido del sistema no disponible: ${cmd}"
-            exit 1
-        fi
-    done
-}
-
 # --- Adquirir lock exclusivo ---
 acquire_lock() {
     exec 200>"${LOCK_FILE}"
@@ -83,9 +80,10 @@ acquire_lock() {
 }
 
 # --- Reducir prioridad ---
+# renice/ionice: operaciones de proceso, no de filesystem.
 lower_priority() {
-    renice -n 19 $$ > /dev/null 2>&1 || true
-    ionice -c3 -p $$ > /dev/null 2>&1 || true
+    renice -n 19 $$ > /dev/null 2>&1 || true  # Fallo aceptable en cgroups restringidos
+    ionice -c3 -p $$ > /dev/null 2>&1 || true  # Fallo aceptable en kernels sin CFQ
 }
 
 # ===========================================================================
@@ -173,10 +171,12 @@ process_policy() {
         # Capturar tamaño antes de borrar para el resumen
         file_size=$(stat -c%s "${file}" 2>/dev/null) || file_size=0
 
-        if rm -f "${file}"; then
-            log_info "  Eliminado: $(basename "${file}")"
-            (( deleted_count++ )) || true
-            (( bytes_saved += file_size )) || true
+        # RISK: Elimina backups antiguos según la política de retención.
+        # Mitigación: solo actúa en rutas validadas por is_safe_path (blacklist +
+        # profundidad mínima 3) y solo sobre ficheros que exceden el límite 'keep'.
+        if execute_cmd "rm -f '${file}'" "Eliminado: $(basename "${file}")"; then
+            (( deleted_count++ )) || true  # (( )) retorna 1 cuando resultado es 0
+            (( bytes_saved += file_size )) || true  # Idem
         else
             log_error "  Fallo al eliminar: ${file}"
         fi
@@ -246,9 +246,9 @@ main() {
         fi
 
         if process_policy "${name}" "${dir}" "${keep}"; then
-            (( policy_count++ )) || true
+            (( policy_count++ )) || true  # (( )) retorna 1 cuando resultado es 0
         else
-            (( fail_count++ )) || true
+            (( fail_count++ )) || true  # Idem
         fi
     done
 

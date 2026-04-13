@@ -58,17 +58,6 @@ parse_args() {
     export DRY_RUN
 }
 
-# --- Validar comandos del SO base ---
-require_system_commands() {
-    local cmd
-    for cmd in "$@"; do
-        if ! command -v "${cmd}" &>/dev/null; then
-            log_error "Comando requerido del sistema no disponible: ${cmd}"
-            exit 1
-        fi
-    done
-}
-
 # ===========================================================================
 # FUNCIONES DE NEGOCIO
 # ===========================================================================
@@ -80,6 +69,7 @@ enable_global_compression() {
         return 0
     fi
 
+    create_backup "${GLOBAL_CONF}"
     execute_cmd "sed -i 's/^#compress/compress/' '${GLOBAL_CONF}'" \
         "Habilitando compresión global en logrotate"
 }
@@ -94,6 +84,7 @@ optimize_journald() {
     fi
 
     log_info "Ajustando SystemMaxUse a ${MAX_JOURNAL_SIZE} en journald..."
+    create_backup "${JOURNAL_CONF}"
 
     if grep -q "^#\?SystemMaxUse=" "${JOURNAL_CONF}" 2>/dev/null; then
         # La línea existe (comentada o con otro valor) — sustituir in-place

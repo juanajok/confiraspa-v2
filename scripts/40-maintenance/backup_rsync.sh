@@ -15,6 +15,9 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Cron ejecuta con PATH mínimo. Asegurar rutas estándar.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 # ===========================================================================
 # CABECERA UNIVERSAL
 # ===========================================================================
@@ -28,6 +31,16 @@ fi
 
 source "${REPO_ROOT}/lib/utils.sh"
 source "${REPO_ROOT}/lib/validators.sh"
+
+# Cargar .env si no estamos bajo install.sh
+if [[ -f "${REPO_ROOT}/.env" ]]; then
+    source "${REPO_ROOT}/.env"
+fi
+
+# LOG_FILE para ejecución desde cron
+if [[ -z "${LOG_FILE:-}" ]]; then
+    LOG_FILE="/var/log/backup_rsync.log"
+fi
 
 # ===========================================================================
 # CONSTANTES
@@ -68,17 +81,6 @@ parse_args() {
     export DRY_RUN
 }
 
-# --- Validar comandos del SO base ---
-require_system_commands() {
-    local cmd
-    for cmd in "$@"; do
-        if ! command -v "${cmd}" &>/dev/null; then
-            log_error "Comando requerido del sistema no disponible: ${cmd}"
-            exit 1
-        fi
-    done
-}
-
 # --- Adquirir lock exclusivo ---
 acquire_lock() {
     exec 200>"${LOCK_FILE}"
@@ -89,9 +91,11 @@ acquire_lock() {
 }
 
 # --- Reducir prioridad para no degradar servicios multimedia ---
+# renice/ionice: operaciones de proceso, no de filesystem.
+# Deben aplicarse incluso en dry-run. || true justificado abajo.
 lower_priority() {
-    renice -n 19 $$ > /dev/null 2>&1 || true
-    ionice -c3 -p $$ > /dev/null 2>&1 || true
+    renice -n 19 $$ > /dev/null 2>&1 || true  # Fallo aceptable en cgroups restringidos
+    ionice -c3 -p $$ > /dev/null 2>&1 || true  # Fallo aceptable en kernels sin CFQ
 }
 
 # ===========================================================================
@@ -213,9 +217,9 @@ main() {
         fi
 
         if run_backup_job "${name}" "${src}" "${dest}"; then
-            (( job_count++ )) || true
+            (( job_count++ )) || true  # (( )) retorna 1 cuando resultado es 0
         else
-            (( fail_count++ )) || true
+            (( fail_count++ )) || true  # Idem
         fi
     done
 
