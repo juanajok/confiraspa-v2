@@ -14,6 +14,9 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Cron ejecuta con PATH mínimo. Asegurar rutas estándar.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 # ===========================================================================
 # CABECERA UNIVERSAL
 # ===========================================================================
@@ -27,6 +30,16 @@ fi
 
 source "${REPO_ROOT}/lib/utils.sh"
 source "${REPO_ROOT}/lib/validators.sh"
+
+# Cargar .env si no estamos bajo install.sh (ej: ejecución directa desde cron)
+if [[ -f "${REPO_ROOT}/.env" ]]; then
+    source "${REPO_ROOT}/.env"
+fi
+
+# LOG_FILE para ejecución desde cron (install.sh lo define, cron no)
+if [[ -z "${LOG_FILE:-}" ]]; then
+    LOG_FILE="/var/log/rclone_backup.log"
+fi
 
 # Cargar .env si no estamos bajo install.sh (ej: ejecución directa desde cron)
 if [[ -f "${REPO_ROOT}/.env" ]]; then
@@ -84,17 +97,6 @@ parse_args() {
     export DRY_RUN
 }
 
-# --- Validar comandos del SO base ---
-require_system_commands() {
-    local cmd
-    for cmd in "$@"; do
-        if ! command -v "${cmd}" &>/dev/null; then
-            log_error "Comando requerido del sistema no disponible: ${cmd}"
-            exit 1
-        fi
-    done
-}
-
 # --- Adquirir lock exclusivo ---
 acquire_lock() {
     exec 200>"${LOCK_FILE}"
@@ -105,9 +107,11 @@ acquire_lock() {
 }
 
 # --- Reducir prioridad para no degradar servicios multimedia ---
+# renice/ionice son operaciones de proceso, no de filesystem.
+# Se ejecutan directamente porque deben aplicarse incluso en dry-run.
 lower_priority() {
-    renice -n 19 $$ > /dev/null 2>&1 || true
-    ionice -c3 -p $$ > /dev/null 2>&1 || true
+    renice -n 19 $$ > /dev/null 2>&1 || true  # Fallo aceptable en cgroups restringidos
+    ionice -c3 -p $$ > /dev/null 2>&1 || true  # Fallo aceptable en kernels sin CFQ
 }
 
 # ===========================================================================
@@ -128,22 +132,6 @@ validate_backup_disk() {
     fi
 }
 
-# --- Comprobar espacio libre en disco ---
-# Retorna 0 si hay al menos $MIN_DISK_SPACE_MB disponibles, 1 si no.
-check_disk_space() {
-    local path="$1"
-
-    # df -PM: POSIX output, en MB. Columna 4 = Available.
-    local avail_mb
-    avail_mb=$(df -PM "${path}" 2>/dev/null | awk 'NR==2 {print $4}') || return 1
-
-    if [[ "${avail_mb}" -lt "${MIN_DISK_SPACE_MB}" ]]; then
-        return 1
-    fi
-
-    return 0
-}
-
 # --- Ejecutar un job de rclone ---
 run_cloud_job() {
     local name="$1"
@@ -160,7 +148,7 @@ run_cloud_job() {
     local check_dir="${dest}"
     [[ -d "${dest}" ]] || check_dir="$(dirname "${dest}")"
 
-    if ! check_disk_space "${check_dir}"; then
+    if ! check_disk_space "${check_dir}" "${MIN_DISK_SPACE_MB}"; then
         log_error "Espacio insuficiente (<${MIN_DISK_SPACE_MB}MB) en ${check_dir}. Saltando '${name}'."
         return 1
     fi
@@ -212,6 +200,7 @@ main() {
     # --- 1. Validaciones ---
     validate_root
     require_system_commands rclone jq find df
+    validate_var "PATH_BACKUP" "${PATH_BACKUP:-}"
 
     if [[ ! -f "${CONFIG_FILE}" ]]; then
         log_error "Configuración no encontrada: ${CONFIG_FILE}"
@@ -258,9 +247,9 @@ main() {
         fi
 
         if run_cloud_job "${name}" "${src}" "${dest}" "${mode}"; then
-            (( job_count++ )) || true
+            (( job_count++ )) || true  # (( )) retorna 1 cuando resultado es 0
         else
-            (( fail_count++ )) || true
+            (( fail_count++ )) || true  # Idem
         fi
     done
 

@@ -13,6 +13,9 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Cron ejecuta con PATH mínimo. Asegurar rutas estándar.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 # ===========================================================================
 # CABECERA UNIVERSAL
 # ===========================================================================
@@ -30,6 +33,11 @@ source "${REPO_ROOT}/lib/validators.sh"
 # Cargar .env si no estamos bajo install.sh (ej: ejecución directa desde cron)
 if [[ -f "${REPO_ROOT}/.env" ]]; then
     source "${REPO_ROOT}/.env"
+fi
+
+# LOG_FILE para ejecución desde cron
+if [[ -z "${LOG_FILE:-}" ]]; then
+    LOG_FILE="/var/log/permissions_fix.log"
 fi
 
 # ===========================================================================
@@ -65,17 +73,6 @@ parse_args() {
     export DRY_RUN
 }
 
-# --- Validar comandos del SO base ---
-require_system_commands() {
-    local cmd
-    for cmd in "$@"; do
-        if ! command -v "${cmd}" &>/dev/null; then
-            log_error "Comando requerido del sistema no disponible: ${cmd}"
-            exit 1
-        fi
-    done
-}
-
 # ===========================================================================
 # FUNCIONES DE NEGOCIO
 # ===========================================================================
@@ -102,6 +99,7 @@ build_directory_list() {
     if [[ -f "${CONFIG_FILE}" ]] && command -v jq &>/dev/null; then
         while IFS= read -r line; do
             [[ -n "${line}" ]] && dirs_ref+=("${line}")
+        # || true: extra_dirs puede no existir en el JSON — fallo esperado y aceptable
         done < <(jq -r '.extra_dirs[]' "${CONFIG_FILE}" 2>/dev/null || true)
     fi
 }
@@ -191,6 +189,8 @@ main() {
     # --- 1. Validaciones ---
     validate_root
     require_system_commands find chown chmod id wc
+    validate_var "ARR_USER" "${ARR_USER:-}"
+    validate_var "ARR_GROUP" "${ARR_GROUP:-}"
 
     local target_user="${ARR_USER:-media}"
     local target_group="${ARR_GROUP:-media}"
