@@ -13,6 +13,10 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Cron ejecuta con PATH mínimo (/usr/bin:/bin). Asegurar rutas estándar
+# para que stat, cmp, renice, ionice, flock, etc. se encuentren siempre.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 # ===========================================================================
 # CABECERA UNIVERSAL
 # ===========================================================================
@@ -32,6 +36,13 @@ if [[ -f "${REPO_ROOT}/.env" ]]; then
     source "${REPO_ROOT}/.env"
 fi
 
+# Cuando cron ejecuta este script directamente, LOG_FILE está vacío y la
+# salida de execute_cmd va a /dev/null. Inicializamos un log propio para
+# que el detalle de los comandos ejecutados quede registrado.
+if [[ -z "${LOG_FILE:-}" ]]; then
+    LOG_FILE="/var/log/clean_downloads.log"
+fi
+
 # ===========================================================================
 # CONSTANTES
 # ===========================================================================
@@ -49,7 +60,6 @@ readonly JUNK_EXTENSIONS="txt|nfo|url|website|srt|sub|idx|jpg|jpeg|png|exe|html|
 # FUNCIONES LOCALES
 # ===========================================================================
 
-# --- Error handler ---
 on_error() {
     local exit_code="${1:-1}"
     local line_no="${BASH_LINENO[0]:-unknown}"
@@ -58,7 +68,6 @@ on_error() {
     log_error "Error en '$(basename "${source_file}")' (línea ${line_no}, exit code ${exit_code})."
 }
 
-# --- Parseo de argumentos ---
 parse_args() {
     DRY_RUN="${DRY_RUN:-false}"
     while [[ $# -gt 0 ]]; do
@@ -71,17 +80,6 @@ parse_args() {
     export DRY_RUN
 }
 
-# --- Validar comandos del SO base ---
-require_system_commands() {
-    local cmd
-    for cmd in "$@"; do
-        if ! command -v "${cmd}" &>/dev/null; then
-            log_error "Comando requerido del sistema no disponible: ${cmd}"
-            exit 1
-        fi
-    done
-}
-
 # --- Adquirir lock exclusivo (evita ejecuciones simultáneas desde cron) ---
 acquire_lock() {
     exec 200>"${LOCK_FILE}"
@@ -92,9 +90,23 @@ acquire_lock() {
 }
 
 # --- Reducir prioridad para no degradar servicios multimedia ---
+# renice/ionice son operaciones de proceso, no de sistema de ficheros.
+# Se ejecutan directamente (no vía execute_cmd) porque:
+#   1. Deben aplicarse incluso en dry-run (el propio find consume I/O).
+#   2. No mutan datos del usuario.
 lower_priority() {
-    renice -n 19 $$ > /dev/null 2>&1 || true
-    ionice -c3 -p $$ > /dev/null 2>&1 || true
+    # || true justificado: en contenedores o cgroups restringidos estos
+    # comandos pueden fallar legítimamente sin consecuencias.
+    renice -n 19 $$ > /dev/null 2>&1 || true  # Fallo aceptable en cgroups restringidos
+    ionice -c3 -p $$ > /dev/null 2>&1 || true  # Fallo aceptable en kernels sin CFQ
+}
+
+# --- Validar variables del .env ---
+validate_env_vars() {
+    # DIR_TORRENTS se valida implícitamente al comprobar si SOURCE_DIR existe.
+    # Las bibliotecas son opcionales — si no existen, build_target_dirs las descarta.
+    # Solo validamos que las variables base del .env estén presentes.
+    validate_var "DIR_TORRENTS" "${DIR_TORRENTS:-}"
 }
 
 # ===========================================================================
@@ -114,7 +126,7 @@ build_target_dirs() {
 
     local dir
     for dir in "${env_dirs[@]}"; do
-        # || true: si la condición es falsa, el && devuelve 1.
+        # || true: si la condición [[ ]] es falsa, el && devuelve 1.
         # Sin el || true, si el último dir del array no existe,
         # la función retorna 1 y set -e mata al caller.
         [[ -n "${dir}" && -d "${dir}" ]] && dirs_ref+=("${dir}") || true
@@ -129,14 +141,6 @@ is_media_file() {
     local ext="${file##*.}"
 
     [[ "${ext,,}" =~ ^(${MEDIA_EXTENSIONS})$ ]]
-}
-
-# --- Comprobar si un fichero es junk por extensión ---
-is_junk_file() {
-    local file="$1"
-    local ext="${file##*.}"
-
-    [[ "${ext,,}" =~ ^(${JUNK_EXTENSIONS})$ ]]
 }
 
 # --- Buscar un duplicado de un fichero en las bibliotecas ---
@@ -193,18 +197,20 @@ cleanup_junk_in_dir() {
     fi
 
     # No quedan medios — limpiar junk
+    # RISK: Elimina ficheros basándose en extensión dentro de subdirectorios de
+    # SOURCE_DIR. No afecta al directorio raíz SOURCE_DIR (guarded en el caller).
+    # Mitigación: solo actúa en subdirectorios, solo extensiones de la allowlist.
     local junk_file
     while IFS= read -r junk_file; do
-        if rm -f "${junk_file}" 2>/dev/null; then
-            log_info "  Junk eliminado: $(basename "${junk_file}")" >&2
-            (( count++ )) || true
-        fi
+        execute_cmd "rm -f '${junk_file}'" "Junk eliminado: $(basename "${junk_file}")" >&2
+        (( count++ )) || true  # (( )) retorna 1 cuando el resultado es 0 (false en aritmética)
     done < <(find "${dir_path}" -maxdepth 1 -type f -regextype posix-extended \
         -iregex ".*\.(${JUNK_EXTENSIONS})" 2>/dev/null)
 
     # Si el directorio quedó vacío, eliminarlo
+    # RISK: rmdir solo funciona si el directorio está realmente vacío — seguro.
     if [[ -d "${dir_path}" ]] && [[ -z "$(ls -A "${dir_path}" 2>/dev/null)" ]]; then
-        rmdir "${dir_path}" 2>/dev/null && log_info "  Directorio vacío eliminado: ${dir_path}" >&2
+        execute_cmd "rmdir '${dir_path}'" "Directorio vacío eliminado: ${dir_path}" >&2
     fi
 
     echo "${count}"
@@ -221,9 +227,9 @@ run_deduplication() {
     log_info "Origen:   ${SOURCE_DIR}"
     log_info "Destinos: ${target_dirs[*]}"
 
-    local file_path basename ext file_size file_inode file_dev dir_path junk_count
+    local file_path file_basename file_size file_inode file_dev dir_path junk_count
     while IFS= read -r file_path; do
-        basename="$(basename "${file_path}")"
+        file_basename="$(basename "${file_path}")"
 
         # Solo procesar ficheros multimedia
         if ! is_media_file "${file_path}"; then
@@ -231,7 +237,7 @@ run_deduplication() {
         fi
 
         # Ignorar samples
-        if [[ "${basename,,}" =~ sample ]]; then
+        if [[ "${file_basename,,}" =~ sample ]]; then
             continue
         fi
 
@@ -243,18 +249,21 @@ run_deduplication() {
         # Buscar duplicado en bibliotecas
         if find_duplicate "${file_path}" "${file_size}" "${file_inode}" "${file_dev}" "${target_dirs[@]}"; then
             if [[ "${DRY_RUN}" == "true" ]]; then
-                log_warning "[DRY-RUN] Borraría: ${basename} ($(( file_size / 1024 / 1024 )) MB)"
+                log_warning "[DRY-RUN] Borraría: ${file_basename} ($(( file_size / 1024 / 1024 )) MB)"
             else
-                if rm -f "${file_path}"; then
-                    log_success "Eliminado: ${basename}"
-                    (( total_deleted++ )) || true
-                    (( bytes_saved += file_size )) || true
+                # RISK: Elimina ficheros multimedia del directorio de descargas.
+                # Mitigación: solo se borran ficheros que existen como duplicados
+                # verificados (mismo inodo o mismo contenido byte a byte) en las
+                # bibliotecas destino. El fichero original en la biblioteca no se toca.
+                if execute_cmd "rm -f '${file_path}'" "Eliminado: ${file_basename}"; then
+                    (( total_deleted++ )) || true  # (( )) retorna 1 cuando resultado es 0
+                    (( bytes_saved += file_size )) || true  # Idem
 
                     # Limpiar junk en el mismo directorio si ya no quedan medios
                     dir_path="$(dirname "${file_path}")"
                     if [[ "${dir_path}" != "${SOURCE_DIR}" ]]; then
                         junk_count=$(cleanup_junk_in_dir "${dir_path}")
-                        (( junk_deleted += junk_count )) || true
+                        (( junk_deleted += junk_count )) || true  # Idem
                     fi
                 fi
             fi
@@ -294,6 +303,7 @@ main() {
     # --- 1. Validaciones ---
     validate_root
     require_system_commands find stat cmp rm renice ionice
+    validate_env_vars
 
     # --- 2. Lock exclusivo y prioridad baja ---
     acquire_lock
