@@ -192,6 +192,7 @@ declare -a STAGES=(
     "optional|scripts/40-maintenance/cron.sh"
     "optional|scripts/40-maintenance/logrotate.sh"
     "optional|scripts/40-maintenance/fix_permissions.sh"
+    "optional|scripts/40-maintenance/status_monitors.sh"
 )
 
 # =============================================================================
