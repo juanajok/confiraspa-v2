@@ -2,22 +2,22 @@
 # Ruta: configs/static/crontabs.txt
 
 # 1. Mantenimiento de Permisos (Lunes 03:00 AM)
-0 3 * * 1 ${CONFIRASPA_ROOT}/scripts/40-maintenance/fix_permissions.sh >> /var/log/permissions_fix.log 2>&1
+0 3 * * 1 ${CONFIRASPA_ROOT}/scripts/40-maintenance/fix_permissions.sh > /dev/null 2>&1
 
 # 2. Copia de Seguridad Local - Rsync (Diario 04:00 AM)
-0 4 * * * ${CONFIRASPA_ROOT}/scripts/40-maintenance/backup_rsync.sh >> /var/log/backup_rsync.log 2>&1
+0 4 * * * ${CONFIRASPA_ROOT}/scripts/40-maintenance/backup_rsync.sh > /dev/null 2>&1
 
 # 3. Limpieza de Backups Antiguos (Domingos 04:30 AM)
-30 4 * * 0 ${CONFIRASPA_ROOT}/scripts/40-maintenance/cleanup_backups.sh >> /var/log/cleanup_backups.log 2>&1
+30 4 * * 0 ${CONFIRASPA_ROOT}/scripts/40-maintenance/cleanup_backups.sh > /dev/null 2>&1
 
 # 4. Copia de Seguridad Nube - Rclone (Domingos 05:00 AM)
-0 5 * * 0 ${CONFIRASPA_ROOT}/scripts/40-maintenance/backup_cloud.sh >> /var/log/rclone_backup.log 2>&1
+0 5 * * 0 ${CONFIRASPA_ROOT}/scripts/40-maintenance/backup_cloud.sh > /dev/null 2>&1
 
-# 5. Limpieza de Descargas - Deduplicación (Diario 05:30 AM)  <-- NUEVO
-30 5 * * * ${CONFIRASPA_ROOT}/scripts/40-maintenance/clean_downloads.sh >> /var/log/clean_downloads.log 2>&1
+# 5. Limpieza de Descargas - Deduplicación (Diario 05:30 AM)
+30 5 * * * ${CONFIRASPA_ROOT}/scripts/40-maintenance/clean_downloads.sh > /dev/null 2>&1
 
 # 6. Actualización del Sistema y Seguridad (Diario 06:00 AM)
-0 6 * * * ${CONFIRASPA_ROOT}/scripts/00-system/00-update.sh >> /var/log/auto_update.log 2>&1
+0 6 * * * ${CONFIRASPA_ROOT}/scripts/00-system/00-update.sh > /dev/null 2>&1
 
 # 7. Purga de Papelera Samba (Semanal, Domingos 03:30 AM)
-30 3 * * 0 ${CONFIRASPA_ROOT}/scripts/40-maintenance/prune_recycle.sh >> /var/log/prune_recycle.log 2>&1
+30 3 * * 0 ${CONFIRASPA_ROOT}/scripts/40-maintenance/prune_recycle.sh > /dev/null 2>&1
