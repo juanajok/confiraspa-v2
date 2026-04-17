@@ -3,47 +3,56 @@
     {
       "name": "Backup Paula",
       "origen": "GDriveJuanjo:Paula",
-      "destino": "/media/Backup/Paula"
+      "destino": "/media/Backup/Paula",
+      "mode": "copy"
     },
     {
       "name": "Biblioteca Libros",
       "origen": "GDriveJuanjo:Libros",
-      "destino": "/media/Backup/Libros"
+      "destino": "/media/Backup/Libros",
+      "mode": "copy"
     },
     {
       "name": "Colección Tebeos",
       "origen": "GDriveJuanjo:Tebeos",
-      "destino": "/media/Backup/Tebeos"
+      "destino": "/media/Backup/Tebeos",
+      "mode": "copy"
     },
     {
       "name": "Documentos Renta",
       "origen": "GDriveJuanjo:Renta",
-      "destino": "/media/Backup/Juanjo/Renta"
+      "destino": "/media/Backup/Juanjo/Renta",
+      "mode": "copy"
     },
     {
       "name": "Backup Papa",
       "origen": "GDriveJuanjo:Backup Papa",
-      "destino": "/media/Backup/Juanjo/Papa"
+      "destino": "/media/Backup/Juanjo/Papa",
+      "mode": "copy"
     },
     {
       "name": "Documentación Coche",
       "origen": "GDriveJuanjo:docu para el coche",
-      "destino": "/media/Backup/Juanjo/Coche"
+      "destino": "/media/Backup/Juanjo/Coche",
+      "mode": "copy"
     },
     {
       "name": "Documentos Comunes",
       "origen": "GDriveJuanjo:Documentos comunes",
-      "destino": "/media/Backup/Documentos"
+      "destino": "/media/Backup/Documentos",
+      "mode": "copy"
     },
     {
       "name": "Backup Diego",
       "origen": "GDriveJuanjo:Diego",
-      "destino": "/media/Backup/Diego"
+      "destino": "/media/Backup/Diego",
+      "mode": "copy"
     },
     {
       "name": "Google Photos Backup",
       "origen": "GPhotosJuanjo:media/by-month",
-      "destino": "/media/Backup/FotosGooglePhotos"
+      "destino": "/media/Backup/FotosGooglePhotos",
+      "mode": "copy"
     }
   ]
 }
