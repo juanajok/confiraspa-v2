@@ -4,7 +4,13 @@
 #
 # Genera reglas de rotación dinámicas desde logrotate_jobs.json y optimiza
 # la configuración global de logrotate y systemd-journald para minimizar
-# escritura en la SD de la Raspberry Pi.
+# escritura en la SD de la Raspberry Pi y mantener trazabilidad de logs.
+#
+# Features:
+#   - dateext + dateformat: ficheros rotados con fecha legible (YYYYMMDD)
+#   - maxsize: rotación anticipada si el log crece más rápido del periodo
+#   - Drop-in de journald: no modifica /etc/systemd/journald.conf (paquete)
+#   - Validación logrotate -d antes de instalar
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -29,14 +35,19 @@ source "${REPO_ROOT}/lib/validators.sh"
 readonly JSON_CONFIG="${REPO_ROOT}/configs/static/logrotate_jobs.json"
 readonly TARGET_FILE="/etc/logrotate.d/confiraspa-dynamic"
 readonly GLOBAL_CONF="/etc/logrotate.conf"
-readonly JOURNAL_CONF="/etc/systemd/journald.conf"
-readonly MAX_JOURNAL_SIZE="100M"
+
+readonly JOURNAL_DROPIN_DIR="/etc/systemd/journald.conf.d"
+readonly JOURNAL_DROPIN_FILE="${JOURNAL_DROPIN_DIR}/10-confiraspa-limit.conf"
+
+# Afinamiento de Journald (balance entre retención y longevidad de SD)
+readonly JOURNAL_MAX_USE="100M"
+readonly JOURNAL_MAX_FILE="10M"
+readonly JOURNAL_RUNTIME_USE="50M"
 
 # ===========================================================================
 # FUNCIONES LOCALES
 # ===========================================================================
 
-# --- Error handler ---
 on_error() {
     local exit_code="${1:-1}"
     local line_no="${BASH_LINENO[0]:-unknown}"
@@ -45,7 +56,6 @@ on_error() {
     log_error "Error en '$(basename "${source_file}")' (línea ${line_no}, exit code ${exit_code})."
 }
 
-# --- Parseo de argumentos ---
 parse_args() {
     DRY_RUN="${DRY_RUN:-false}"
     while [[ $# -gt 0 ]]; do
@@ -62,7 +72,7 @@ parse_args() {
 # FUNCIONES DE NEGOCIO
 # ===========================================================================
 
-# --- Habilitar compresión global en logrotate.conf (idempotente) ---
+# --- Habilitar compresión global en logrotate.conf ---
 enable_global_compression() {
     if ! grep -q "^#compress" "${GLOBAL_CONF}" 2>/dev/null; then
         log_info "Compresión global ya habilitada en logrotate."
@@ -74,30 +84,46 @@ enable_global_compression() {
         "Habilitando compresión global en logrotate"
 }
 
-# --- Limitar tamaño de journald (protección SD) ---
-# SystemMaxUse limita el espacio que journald ocupa en disco.
-# En una RPi con SD, 100M es un compromiso entre diagnóstico y longevidad.
+# --- Optimizar journald vía drop-in ---
+# No modificar /etc/systemd/journald.conf directamente (pertenece al paquete
+# systemd y cualquier update lo sobreescribe). Los drop-ins son la forma
+# correcta de personalizar configuración de systemd.
 optimize_journald() {
-    if grep -q "^SystemMaxUse=${MAX_JOURNAL_SIZE}" "${JOURNAL_CONF}" 2>/dev/null; then
-        log_info "Journald ya está limitado a ${MAX_JOURNAL_SIZE}."
+    local temp_dir="$1"
+    local candidate="${temp_dir}/journald-dropin.candidate"
+
+    cat > "${candidate}" <<EOF
+# Generado por Confiraspa — límites de journald para proteger la SD
+[Journal]
+SystemMaxUse=${JOURNAL_MAX_USE}
+SystemMaxFileSize=${JOURNAL_MAX_FILE}
+RuntimeMaxUse=${JOURNAL_RUNTIME_USE}
+EOF
+
+    # Idempotencia: solo instalar si ha cambiado
+    if [[ -f "${JOURNAL_DROPIN_FILE}" ]] && cmp -s "${JOURNAL_DROPIN_FILE}" "${candidate}"; then
+        log_info "Drop-in de journald sin cambios."
         return 0
     fi
 
-    log_info "Ajustando SystemMaxUse a ${MAX_JOURNAL_SIZE} en journald..."
-    create_backup "${JOURNAL_CONF}"
+    execute_cmd "mkdir -p '${JOURNAL_DROPIN_DIR}'" \
+        "Creando directorio drop-in de journald"
 
-    if grep -q "^#\?SystemMaxUse=" "${JOURNAL_CONF}" 2>/dev/null; then
-        # La línea existe (comentada o con otro valor) — sustituir in-place
-        execute_cmd "sed -i 's/^[#]*SystemMaxUse=.*/SystemMaxUse=${MAX_JOURNAL_SIZE}/' '${JOURNAL_CONF}'" \
-            "Actualizando SystemMaxUse en journald.conf"
-    else
-        # La línea no existe — añadir al final bajo [Journal]
-        execute_cmd "bash -c 'echo \"SystemMaxUse=${MAX_JOURNAL_SIZE}\" >> \"${JOURNAL_CONF}\"'" \
-            "Añadiendo SystemMaxUse a journald.conf"
+    if [[ -f "${JOURNAL_DROPIN_FILE}" ]]; then
+        create_backup "${JOURNAL_DROPIN_FILE}"
     fi
 
+    execute_cmd "cp '${candidate}' '${JOURNAL_DROPIN_FILE}'" \
+        "Instalando drop-in de journald (SystemMaxUse=${JOURNAL_MAX_USE})"
+    execute_cmd "chmod 644 '${JOURNAL_DROPIN_FILE}'" \
+        "Permisos del drop-in"
+
+    # RISK: Reiniciar journald rota los ficheros activos y genera un nuevo
+    # journal. No se pierden logs pasados (se archivan), pero clientes que
+    # estén leyendo journal en tiempo real (journalctl -f) pierden el stream.
+    # Mitigación: impacto aceptable durante instalación planificada.
     execute_cmd "systemctl restart systemd-journald" \
-        "Reiniciando journald para aplicar límite"
+        "Reiniciando journald para aplicar límites"
 }
 
 # --- Extraer campos de un job JSON en una sola llamada jq ---
@@ -107,34 +133,35 @@ parse_job_fields() {
     local job="$1"
 
     # Extraer todos los campos en una línea TSV
-    read -r JOB_NAME JOB_PATH JOB_ROTATE JOB_DAILY JOB_WEEKLY JOB_FREQUENCY \
-         JOB_COMPRESS JOB_MISSINGOK JOB_NOTIFEMPTY JOB_COPYTRUNCATE JOB_CREATE \
+    read -r JOB_NAME JOB_PATH JOB_ROTATE JOB_DAILY JOB_WEEKLY \
+         JOB_COMPRESS JOB_MISSINGOK JOB_NOTIFEMPTY \
+         JOB_CREATE JOB_COPYTRUNCATE JOB_MAXSIZE \
         < <(echo "${job}" | jq -r '[
             .name,
             .path,
             (.rotate // 7 | tostring),
             (.daily // false | tostring),
             (.weekly // false | tostring),
-            (.frequency // "daily"),
             (.compress // true | tostring),
             (.missingok // true | tostring),
             (.notifempty // true | tostring),
+            (.create // ""),
             (.copytruncate // false | tostring),
-            (.create // "")
+            (.maxsize // "")
         ] | @tsv')
 }
 
 # --- Convertir campos del job a directivas logrotate ---
 render_job_block() {
-    local freq
+    local frequency
 
-    # Determinar frecuencia: flags booleanos tienen prioridad sobre .frequency
+    # Determinar frecuencia explícita: daily > weekly > default (weekly)
     if [[ "${JOB_DAILY}" == "true" ]]; then
-        freq="daily"
+        frequency="daily"
     elif [[ "${JOB_WEEKLY}" == "true" ]]; then
-        freq="weekly"
+        frequency="weekly"
     else
-        freq="${JOB_FREQUENCY}"
+        frequency="weekly"
     fi
 
     # Mapear booleanos a directivas
@@ -147,22 +174,30 @@ render_job_block() {
     local notifempty_dir="notifempty"
     [[ "${JOB_NOTIFEMPTY}" != "true" ]] && notifempty_dir="ifempty"
 
-    log_info "  -> Generando regla: ${JOB_NAME} (${freq})"
+    log_info "  -> Generando regla: ${JOB_NAME} (${frequency})"
 
-    # Generar bloque — su root adm evita el error "insecure permissions"
-    # que logrotate emite cuando el directorio padre no es propiedad de root.
-    echo "${JOB_PATH} {"
-    echo "    su root adm"
-    echo "    ${freq}"
-    echo "    rotate ${JOB_ROTATE}"
-    echo "    ${compress_dir}"
-    [[ "${compress_dir}" == "compress" ]] && echo "    delaycompress"
-    echo "    ${missingok_dir}"
-    echo "    ${notifempty_dir}"
-    [[ "${JOB_COPYTRUNCATE}" == "true" ]] && echo "    copytruncate"
-    [[ -n "${JOB_CREATE}" ]] && echo "    create ${JOB_CREATE}"
-    echo "}"
-    echo ""
+    # Bloque de regla logrotate — su root adm evita warnings de
+    # "insecure permissions" cuando el directorio padre no es de root.
+    {
+        echo "${JOB_PATH} {"
+        echo "    su root adm"
+        echo "    ${frequency}"
+        echo "    rotate ${JOB_ROTATE}"
+        echo "    dateext"
+        echo "    dateformat -%Y%m%d"
+        [[ -n "${JOB_MAXSIZE}" ]] && echo "    maxsize ${JOB_MAXSIZE}"
+        echo "    ${compress_dir}"
+        [[ "${compress_dir}" == "compress" ]] && echo "    delaycompress"
+        echo "    ${missingok_dir}"
+        echo "    ${notifempty_dir}"
+        if [[ "${JOB_COPYTRUNCATE}" == "true" ]]; then
+            echo "    # NOTE: copytruncate puede perder escrituras en alta concurrencia"
+            echo "    copytruncate"
+        fi
+        [[ -n "${JOB_CREATE}" ]] && echo "    create ${JOB_CREATE}"
+        echo "}"
+        echo ""
+    }
 }
 
 # --- Generar reglas dinámicas desde JSON ---
@@ -186,18 +221,19 @@ generate_dynamic_rules() {
     } > "${candidate}"
 
     # Procesar cada job del JSON
+    local job
     while IFS= read -r job; do
         parse_job_fields "${job}"
         render_job_block >> "${candidate}"
     done < <(jq -c '.jobs[]' "${JSON_CONFIG}")
 
-    # Validar sintaxis con logrotate -d (debug mode, no ejecuta rotaciones)
-    # logrotate -d puede reportar "stat of /var/log/X failed" si los logs no
-    # existen aún — eso es normal en instalación fresca, no es un error real.
+    # Validar sintaxis con logrotate -d (modo debug, no ejecuta rotaciones)
+    # Errores comunes (stat failed) son normales en instalación fresca si
+    # los logs aún no existen — los filtramos.
     log_info "Validando sintaxis generada..."
 
     if [[ "${DRY_RUN}" == "true" ]]; then
-        log_warning "[DRY-RUN] Validación de sintaxis logrotate omitida (fichero no instalado)."
+        log_warning "[DRY-RUN] Validación de sintaxis omitida (fichero no instalado)."
     else
         local val_output
         if val_output=$(logrotate -d "${candidate}" 2>&1); then
@@ -207,7 +243,7 @@ generate_dynamic_rules() {
                 log_warning "Algunos ficheros de log aún no existen (normal en instalación fresca)."
             else
                 log_error "Error de sintaxis en la configuración generada:"
-                echo "${val_output}" >&2
+                log_error "${val_output}"
                 exit 1
             fi
         fi
@@ -219,11 +255,16 @@ generate_dynamic_rules() {
         return 0
     fi
 
+    if [[ -f "${TARGET_FILE}" ]]; then
+        create_backup "${TARGET_FILE}"
+    fi
+
     execute_cmd "cp '${candidate}' '${TARGET_FILE}'" \
         "Instalando reglas de logrotate en ${TARGET_FILE}"
-
     execute_cmd "chmod 644 '${TARGET_FILE}'" \
-        "Ajustando permisos de ${TARGET_FILE}"
+        "Permisos del fichero de reglas"
+    execute_cmd "chown root:root '${TARGET_FILE}'" \
+        "Propietario root:root"
 }
 
 # ===========================================================================
@@ -235,22 +276,24 @@ main() {
     trap 'rm -rf "${temp_dir:-}"' EXIT
     trap 'on_error "$?"' ERR
 
-    # --- Inicialización ---
     parse_args "$@"
-    log_section "Optimización de Logs (Logrotate + Journal)"
+    log_section "Optimización de Logs (Logrotate + Journald)"
 
     # --- 1. Validaciones ---
     validate_root
-    require_system_commands sed grep systemctl logrotate
+    require_system_commands sed grep systemctl logrotate mktemp cp cmp chown chmod
 
     ensure_package "jq"
 
-    # --- 2. Optimización global ---
-    enable_global_compression
-    optimize_journald
-
-    # --- 3. Reglas dinámicas desde JSON ---
     temp_dir="$(mktemp -d)"
+
+    # --- 2. Compresión global en logrotate.conf ---
+    enable_global_compression
+
+    # --- 3. Drop-in de journald ---
+    optimize_journald "${temp_dir}"
+
+    # --- 4. Reglas dinámicas desde JSON ---
     generate_dynamic_rules "${temp_dir}"
 
     log_success "Mantenimiento de logs finalizado."
