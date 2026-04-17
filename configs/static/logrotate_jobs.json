@@ -1,7 +1,7 @@
 {
-  "jobs": [
+  "jobs":[
     {
-      "name": "confiraspa_backup_cloud",
+      "name": "confiraspa_backup_cloud_orchestrator",
       "path": "/var/log/rclone_backup.log",
       "rotate": 7,
       "daily": true,
@@ -9,7 +9,20 @@
       "missingok": true,
       "notifempty": true,
       "create": "0640 root adm",
-      "copytruncate": true
+      "copytruncate": true,
+      "maxsize": "10M"
+    },
+    {
+      "name": "confiraspa_backup_cloud_detail",
+      "path": "/var/log/rclone_detail.log",
+      "rotate": 4,
+      "weekly": true,
+      "compress": true,
+      "missingok": true,
+      "notifempty": true,
+      "create": "0640 root adm",
+      "copytruncate": true,
+      "maxsize": "50M"
     },
     {
       "name": "confiraspa_backup_local",
@@ -20,7 +33,8 @@
       "missingok": true,
       "notifempty": true,
       "create": "0640 root adm",
-      "copytruncate": true
+      "copytruncate": true,
+      "maxsize": "20M"
     },
     {
       "name": "confiraspa_permissions",
@@ -31,7 +45,8 @@
       "missingok": true,
       "notifempty": true,
       "create": "0640 root adm",
-      "copytruncate": true
+      "copytruncate": true,
+      "maxsize": "10M"
     },
     {
       "name": "confiraspa_clean_downloads",
@@ -42,7 +57,32 @@
       "missingok": true,
       "notifempty": true,
       "create": "0640 root adm",
-      "copytruncate": true
+      "copytruncate": true,
+      "maxsize": "10M"
+    },
+    {
+      "name": "confiraspa_prune_recycle",
+      "path": "/var/log/prune_recycle.log",
+      "rotate": 4,
+      "weekly": true,
+      "compress": true,
+      "missingok": true,
+      "notifempty": true,
+      "create": "0640 root adm",
+      "copytruncate": true,
+      "maxsize": "10M"
+    },
+    {
+      "name": "confiraspa_auto_update",
+      "path": "/var/log/auto_update.log",
+      "rotate": 14,
+      "daily": true,
+      "compress": true,
+      "missingok": true,
+      "notifempty": true,
+      "create": "0640 root adm",
+      "copytruncate": true,
+      "maxsize": "10M"
     }
   ]
 }
