@@ -47,12 +47,6 @@
       "origen": "GDriveJuanjo:Diego",
       "destino": "/media/Backup/Diego",
       "mode": "copy"
-    },
-    {
-      "name": "Google Photos Backup",
-      "origen": "GPhotosJuanjo:media/by-month",
-      "destino": "/media/Backup/FotosGooglePhotos",
-      "mode": "copy"
     }
   ]
 }
