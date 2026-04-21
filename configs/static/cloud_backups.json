@@ -47,6 +47,12 @@
       "origen": "GDriveJuanjo:Diego",
       "destino": "/media/Backup/Diego",
       "mode": "copy"
+    },
+     {
+      "name": "Backup Casa Almonte",
+      "origen": "GDriveJuanjo:Casa Almonte",
+      "destino": "/media/Backup/Casa_Almonte",
+      "mode": "copy"
     }
   ]
 }
