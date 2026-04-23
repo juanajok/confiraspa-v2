@@ -2,56 +2,56 @@
   "jobs": [
     {
       "name": "Backup Paula",
-      "origen": "GDriveJuanjo:Paula",
-      "destino": "/media/Backup/Paula",
-      "mode": "copy"
-    },
-    {
-      "name": "Biblioteca Libros",
-      "origen": "GDriveJuanjo:Libros",
-      "destino": "/media/Backup/Libros",
-      "mode": "copy"
-    },
-    {
-      "name": "Colección Tebeos",
-      "origen": "GDriveJuanjo:Tebeos",
-      "destino": "/media/Backup/Tebeos",
-      "mode": "copy"
-    },
-    {
-      "name": "Documentos Renta",
-      "origen": "GDriveJuanjo:Renta",
-      "destino": "/media/Backup/Juanjo/Renta",
-      "mode": "copy"
-    },
-    {
-      "name": "Backup Papa",
-      "origen": "GDriveJuanjo:Backup Papa",
-      "destino": "/media/Backup/Juanjo/Papa",
-      "mode": "copy"
-    },
-    {
-      "name": "Documentación Coche",
-      "origen": "GDriveJuanjo:docu para el coche",
-      "destino": "/media/Backup/Juanjo/Coche",
-      "mode": "copy"
-    },
-    {
-      "name": "Documentos Comunes",
-      "origen": "GDriveJuanjo:Documentos comunes",
-      "destino": "/media/Backup/Documentos",
+      "origen": "GDriveJuanjo:02_Áreas/Familia y fotos/Paula",
+      "destino": "/media/Backup/02_Areas/Familia_y_fotos/Paula",
       "mode": "copy"
     },
     {
       "name": "Backup Diego",
-      "origen": "GDriveJuanjo:Diego",
-      "destino": "/media/Backup/Diego",
+      "origen": "GDriveJuanjo:02_Áreas/Familia y fotos/Diego",
+      "destino": "/media/Backup/02_Areas/Familia_y_fotos/Diego",
       "mode": "copy"
     },
-     {
-      "name": "Backup Casa Almonte",
-      "origen": "GDriveJuanjo:Casa Almonte",
-      "destino": "/media/Backup/Casa_Almonte",
+    {
+      "name": "Backup Papa",
+      "origen": "GDriveJuanjo:02_Áreas/Familia y fotos/Backup Papa",
+      "destino": "/media/Backup/02_Areas/Familia_y_fotos/Papa",
+      "mode": "copy"
+    },
+    {
+      "name": "Documentos Comunes",
+      "origen": "GDriveJuanjo:02_Áreas/Familia y fotos/Documentos comunes",
+      "destino": "/media/Backup/02_Areas/Familia_y_fotos/Documentos_comunes",
+      "mode": "copy"
+    },
+    {
+      "name": "Documentos Renta",
+      "origen": "GDriveJuanjo:02_Áreas/Finanzas personales/Renta",
+      "destino": "/media/Backup/02_Areas/Finanzas_personales/Renta",
+      "mode": "copy"
+    },
+    {
+      "name": "Documentación Coche",
+      "origen": "GDriveJuanjo:02_Áreas/Finanzas personales/docu para el coche",
+      "destino": "/media/Backup/02_Areas/Finanzas_personales/Coche",
+      "mode": "copy"
+    },
+    {
+      "name": "Casa Almonte",
+      "origen": "GDriveJuanjo:02_Áreas/Hogar Madrid/Casa Almonte",
+      "destino": "/media/Backup/02_Areas/Hogar_Madrid/Casa_Almonte",
+      "mode": "copy"
+    },
+    {
+      "name": "Biblioteca Libros",
+      "origen": "GDriveJuanjo:04_Archivo/Libros",
+      "destino": "/media/Backup/04_Archivo/Libros",
+      "mode": "copy"
+    },
+    {
+      "name": "Colección Tebeos",
+      "origen": "GDriveJuanjo:04_Archivo/Tebeos",
+      "destino": "/media/Backup/04_Archivo/Tebeos",
       "mode": "copy"
     }
   ]
