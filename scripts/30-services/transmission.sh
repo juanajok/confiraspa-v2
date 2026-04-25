@@ -54,11 +54,10 @@ fi
 TRANSMISSION_USER="${TRANSMISSION_USER:-admin}"
 TRANSMISSION_PEER_PORT="${TRANSMISSION_PEER_PORT:-51413}"
 
-# Definición de Directorios NAS (Vienen de 20-storage.sh / .env)
-# DIR_TORRENTS = /media/DiscoDuro/torrents/completos
-export DIR_TORRENTS="${DIR_TORRENTS:-/media/DiscoDuro/torrents/completos}"
-# Incompleto al lado para evitar movimientos entre particiones
-export DIR_INCOMPLETE="$(dirname "$DIR_TORRENTS")/incompleto"
+# DIR_TORRENTS y DIR_TORRENTS_TEMP vienen de .env (via PATH_DOWNLOADS).
+# Los fallbacks apuntan a la ruta correcta actual — solo como red de seguridad.
+export DIR_TORRENTS="${DIR_TORRENTS:-/media/Descargas/torrents/completos}"
+export DIR_INCOMPLETE="${DIR_TORRENTS_TEMP:-/media/Descargas/torrents/temp}"
 
 # Exportamos explícitamente las variables que usará la plantilla
 export TRANSMISSION_USER TRANSMISSION_PASS TRANSMISSION_PEER_PORT
