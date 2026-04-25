@@ -180,16 +180,29 @@ validate_rclone_config() {
 
 # --- Comprobar que el disco de backup está montado y no vacío ---
 validate_backup_disk() {
+    # Comprobar que PATH_BACKUP existe
     if [[ ! -d "${PATH_BACKUP}" ]]; then
         log_error "Directorio de backup no existe: ${PATH_BACKUP}"
         exit 1
     fi
 
-    if [[ -z "$(find "${PATH_BACKUP}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
-        log_error "CRÍTICO: ${PATH_BACKUP} está vacío. Posible disco desmontado."
+    # Comprobar que es un mountpoint real — esto detecta el disco desmontado
+    # sin depender de que tenga contenido (falla en discos nuevos y vacíos).
+    if ! mountpoint -q "${PATH_BACKUP}"; then
+        log_error "CRÍTICO: ${PATH_BACKUP} no está montado como punto de montaje."
         log_error "Abortando para prevenir escritura en la SD."
         exit 1
     fi
+
+    # Comprobar que es escribible con un fichero centinela
+    local sentinel="${PATH_BACKUP}/.confiraspa_sentinel"
+    if ! touch "${sentinel}" 2>/dev/null || ! rm -f "${sentinel}" 2>/dev/null; then
+        log_error "CRÍTICO: ${PATH_BACKUP} no es escribible (disco en read-only o sin permisos)."
+        log_error "Abortando para prevenir pérdida de datos."
+        exit 1
+    fi
+
+    log_success "Disco de backup verificado: montado y escribible."
 }
 
 # --- Ejecutar un job de rclone ---
