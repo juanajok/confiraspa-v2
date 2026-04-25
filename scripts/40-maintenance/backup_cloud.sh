@@ -221,11 +221,10 @@ run_cloud_job() {
     log_info "Destino: ${dest}"
 
     # Check de espacio antes de empezar
-    local check_dir="${dest}"
-    [[ -d "${dest}" ]] || check_dir="$(dirname "${dest}")"
-
-    if ! check_disk_space "${check_dir}" "${MIN_DISK_SPACE_MB}"; then
-        log_error "Espacio insuficiente (<${MIN_DISK_SPACE_MB}MB) en ${check_dir}. Saltando '${name}'."
+    # Comprobamos espacio en el mountpoint del disco de backup, no en el subdirectorio
+    # destino (que puede no existir aún). El disco relevante es siempre PATH_BACKUP.
+    if ! check_disk_space "${PATH_BACKUP}" "${MIN_DISK_SPACE_MB}"; then
+        log_error "Espacio insuficiente (<${MIN_DISK_SPACE_MB}MB) en disco de backup (${PATH_BACKUP}). Saltando '${name}'."
         return 1
     fi
 
