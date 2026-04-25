@@ -37,8 +37,8 @@ readonly DEFAULT_FILE="/etc/default/amule-daemon"
 readonly AMULE_WEB_PORT="4711"
 readonly MEDIA_GROUP="${ARR_GROUP:-media}"
 
-export DIR_TORRENTS="${DIR_TORRENTS:-/media/DiscoDuro/torrents/completos}"
-export DIR_TORRENTS_TEMP="${DIR_AMULE_TEMP:-/media/DiscoDuro/torrents/temp}"
+export DIR_TORRENTS="${DIR_TORRENTS:-/media/Descargas/torrents/completos}"
+export DIR_TORRENTS_TEMP="${DIR_TORRENTS_TEMP:-/media/Descargas/torrents/temp}"
 
 DRY_RUN="${DRY_RUN:-false}"
 
