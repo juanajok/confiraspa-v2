@@ -5,21 +5,21 @@
       "uuid": "13a9b327-da1c-4b7a-8eeb-bdd3993bad7d",
       "ruta": "/media/WDElements",
       "fstype": "ext4",
-      "opciones": "defaults,noatime,nofail"
+      "opciones": "defaults,noatime,nofail,x-systemd.device-timeout=10s"
     },
     {
-      "label": "DiscoDuro",
-      "uuid": "1601eb8d-43d1-4ee4-974e-82466c4c945b",
-      "ruta": "/media/DiscoDuro",
+      "label": "descargas-rpi",
+      "uuid": "2f5d3f00-abc9-4085-b0a5-853d08c8853a",
+      "ruta": "/media/Descargas",
       "fstype": "ext4",
-      "opciones": "defaults,noatime,nofail"
+      "opciones": "defaults,noatime,nofail,x-systemd.device-timeout=10s"
     },
     {
       "label": "Backup",
-      "uuid": "78304c4a-7a44-470a-872e-0eeef941b35c",
+      "uuid": "40583c0f-36d2-4d3f-9d49-452e44b3adfa",
       "ruta": "/media/Backup",
       "fstype": "ext4",
-      "opciones": "defaults,noatime,nofail"
+      "opciones": "defaults,noatime,nofail,x-systemd.device-timeout=10s"
     }
   ]
 }
