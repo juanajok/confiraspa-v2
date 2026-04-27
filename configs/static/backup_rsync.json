@@ -13,7 +13,8 @@
     {
       "name": "Biblioteca Calibre",
       "origen": "/media/WDElements/Libros/Biblioteca de Calibre",
-      "destino": "/media/Backup/Libros"
+      "destino": "/media/Backup/Libros",
+      "exclude": ["*.azw3", "*.mobi"]
     },
     {
       "name": "Tebeos",

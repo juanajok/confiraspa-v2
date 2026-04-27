@@ -130,6 +130,7 @@ run_backup_job() {
     local name="$1"
     local src="$2"
     local dest="$3"
+    local exclude_raw="${4:-}"
 
     log_subsection "Backup: ${name}"
     log_info "Origen:  ${src}"
@@ -146,9 +147,19 @@ run_backup_job() {
             "Creando directorio destino: ${dest}"
     fi
 
+    # Construir flags de exclusión a partir de patrones separados por '|'
+    local exclude_flags=""
+    if [[ -n "${exclude_raw}" ]]; then
+        local pattern
+        while IFS= read -r pattern; do
+            exclude_flags+=" --exclude='${pattern}'"
+        done < <(echo "${exclude_raw}" | tr '|' '\n')
+        log_info "Exclusiones: ${exclude_raw//|/, }"
+    fi
+
     # Construir comando rsync como string para execute_cmd.
     # ${src%/}/ asegura barra final → rsync copia el CONTENIDO, no la carpeta.
-    local rsync_cmd="rsync ${RSYNC_BASE_OPTS} '${src%/}/' '${dest%/}/'"
+    local rsync_cmd="rsync ${RSYNC_BASE_OPTS}${exclude_flags} '${src%/}/' '${dest%/}/'"
 
     log_info "Sincronizando..."
     if execute_cmd "${rsync_cmd}" "Rsync: ${name}"; then
@@ -184,9 +195,9 @@ main() {
     # --- 3. Leer jobs del JSON ---
     # Usamos mapfile por línea (una línea por campo) en lugar de @tsv,
     # para evitar el colapso de campos vacíos que encontramos en restore_apps.
-    # Cada job emite 3 líneas: name, origen, destino.
+    # Cada job emite 4 líneas: name, origen, destino, exclude (vacío si no definido).
     local -a all_fields
-    mapfile -t all_fields < <(jq -r '.jobs[] | .name, .origen, .destino' "${CONFIG_FILE}")
+    mapfile -t all_fields < <(jq -r '.jobs[] | .name, .origen, .destino, (.exclude // [] | join("|"))' "${CONFIG_FILE}")
 
     local total_fields=${#all_fields[@]}
     if [[ "${total_fields}" -eq 0 ]]; then
@@ -194,29 +205,30 @@ main() {
         return 0
     fi
 
-    # Verificar que el número de campos es múltiplo de 3
-    if (( total_fields % 3 != 0 )); then
-        log_error "El JSON tiene campos inconsistentes (${total_fields} valores, se esperan múltiplos de 3)."
+    # Verificar que el número de campos es múltiplo de 4
+    if (( total_fields % 4 != 0 )); then
+        log_error "El JSON tiene campos inconsistentes (${total_fields} valores, se esperan múltiplos de 4)."
         exit 1
     fi
 
     # --- 4. Procesar cada job ---
-    local i name src dest
+    local i name src dest exclude_raw
     local job_count=0
     local fail_count=0
 
-    for (( i=0; i<total_fields; i+=3 )); do
+    for (( i=0; i<total_fields; i+=4 )); do
         name="${all_fields[i]:-}"
         src="${all_fields[i+1]:-}"
         dest="${all_fields[i+2]:-}"
+        exclude_raw="${all_fields[i+3]:-}"
 
         # Validación defensiva
         if [[ -z "${name}" || -z "${src}" || -z "${dest}" ]]; then
-            log_warning "Job con campos vacíos (posición $((i/3+1))). Saltando."
+            log_warning "Job con campos vacíos (posición $((i/4+1))). Saltando."
             continue
         fi
 
-        if run_backup_job "${name}" "${src}" "${dest}"; then
+        if run_backup_job "${name}" "${src}" "${dest}" "${exclude_raw}"; then
             (( job_count++ )) || true  # (( )) retorna 1 cuando resultado es 0
         else
             (( fail_count++ )) || true  # Idem
