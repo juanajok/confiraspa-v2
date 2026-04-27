@@ -270,7 +270,9 @@ ensure_media_layout() {
     ensure_directory "${DIR_MOVIES}"   "${media_owner}" "${media_group}" 2775
     ensure_directory "${DIR_MUSIC}"    "${media_owner}" "${media_group}" 2775
     ensure_directory "${DIR_BOOKS}"    "${media_owner}" "${media_group}" 2775
-    ensure_directory "${DIR_TORRENTS}" "${media_owner}" "${media_group}" 2775
+    ensure_directory "${DIR_TORRENTS}"       "${media_owner}" "${media_group}" 2775
+    ensure_directory "${DIR_TORRENTS_TEMP}"  "${media_owner}" "${media_group}" 2775
+    ensure_directory "${PATH_BACKUP}/rclone" "${media_owner}" "${media_group}" 2775
 }
 
 # =============================================================================
@@ -314,7 +316,7 @@ main() {
     require_env_vars_local \
         ARR_USER ARR_GROUP \
         PATH_LIBRARY PATH_DOWNLOADS PATH_BACKUP \
-        DIR_SERIES DIR_MOVIES DIR_MUSIC DIR_BOOKS DIR_TORRENTS
+        DIR_SERIES DIR_MOVIES DIR_MUSIC DIR_BOOKS DIR_TORRENTS DIR_TORRENTS_TEMP
 
     [[ -f "${MOUNTS_CONFIG}" ]] || {
         log_error "No existe el archivo de configuración: ${MOUNTS_CONFIG}"
