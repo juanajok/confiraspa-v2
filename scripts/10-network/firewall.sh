@@ -47,6 +47,7 @@ readonly FW_AMULE_TCP="4662"     # eD2k — protocolo fijo, no configurable
 readonly FW_AMULE_UDP="4672"     # Kademlia — protocolo fijo, no configurable
 
 # Web UIs (solo LAN)
+readonly FW_MINIDLNA_PORT="${MINIDLNA_PORT:-8200}"
 readonly FW_WEBMIN_PORT="${WEBMIN_PORT:-10000}"
 readonly FW_TRANSMISSION_WEB="${TRANSMISSION_WEB_PORT:-9091}"
 readonly FW_AMULE_WEB="4711"
@@ -201,6 +202,14 @@ configure_private_zone() {
     # Multimedia
     allow_lan "${FW_CALIBRE_PORT}" "tcp" "Calibre Content Server"
     allow_lan "${FW_BAZARR_PORT}" "tcp" "Bazarr Subtítulos"
+
+    # MiniDLNA — DLNA/UPnP para Smart TVs (LAN only)
+    # NOTA MULTICAST: SSDP usa destino 239.255.255.250. UFW "to any" no restringe
+    # destino, así que la regla LAN-scoped cubre multicast siempre que el TV esté
+    # en la misma subred. Si el router tiene AP isolation o filtrado multicast,
+    # el TV no descubrirá el servidor aunque UFW esté correcto.
+    allow_lan "${FW_MINIDLNA_PORT}" "tcp" "MiniDLNA media streaming"
+    allow_lan "1900" "udp" "SSDP discovery DLNA"
 
     # Suite *Arr
     allow_lan "${FW_SONARR_PORT}" "tcp" "Sonarr"
