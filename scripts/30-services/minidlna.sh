@@ -87,12 +87,12 @@ parse_args() {
 # ===========================================================================
 
 validate_env_vars() {
-    validate_var "ARR_USER"     "${ARR_USER:-}"
-    validate_var "ARR_GROUP"    "${ARR_GROUP:-}"
+    validate_var "ARR_USER"  "${ARR_USER:-}"
+    validate_var "ARR_GROUP" "${ARR_GROUP:-}"
     validate_var "PATH_LIBRARY" "${PATH_LIBRARY:-}"
-    validate_var "DIR_SERIES"   "${DIR_SERIES:-}"
-    validate_var "DIR_MOVIES"   "${DIR_MOVIES:-}"
-    validate_var "DIR_MUSIC"    "${DIR_MUSIC:-}"
+    validate_var "DIR_SERIES" "${DIR_SERIES:-}"
+    validate_var "DIR_MOVIES" "${DIR_MOVIES:-}"
+    validate_var "DIR_MUSIC"  "${DIR_MUSIC:-}"
     # DIR_PHOTOS NO se valida — es opcional
 }
 
@@ -175,7 +175,6 @@ check_media_paths() {
     for dir in "${DIR_VIDEO_SERIES}" "${DIR_VIDEO_MOVIES}" "${DIR_AUDIO}"; do
         if [[ ! -d "${dir}" ]]; then
             log_warning "Ruta de biblioteca no encontrada: ${dir}"
-            # ((n++)) devuelve exit 1 cuando n era 0 (pre-increment evalúa a 0)
             ((missing++)) || true
         fi
     done
@@ -196,11 +195,11 @@ configure_inotify_limits() {
     tempdir="$(mktemp -d)"
     local candidate="${tempdir}/sysctl.candidate"
 
-    cat > "${candidate}" << 'SYSCTL'
+    cat > "${candidate}" << EOF
 # Gestionado por Confiraspa. El default 8192 es insuficiente en bibliotecas
 # grandes con muchos subdirectorios. Subimos a 524288 (límite recomendado).
 fs.inotify.max_user_watches = 524288
-SYSCTL
+EOF
 
     if [[ -f "${sysctl_file}" ]] && cmp -s "${sysctl_file}" "${candidate}"; then
         log_info "Límites de inotify ya configurados."
@@ -307,7 +306,7 @@ post_checks() {
     local ip
     ip="$(get_ip_address)"
 
-    # Smoke test 1: puerto TCP escuchando
+    # Smoke test 1: puerto 8200/TCP escuchando
     log_info "Smoke test: verificando puerto ${DLNA_PORT}/TCP..."
     if ss -lntup 2>/dev/null | grep -q ":${DLNA_PORT}"; then
         log_success "Puerto ${DLNA_PORT}/TCP activo."
@@ -351,7 +350,7 @@ post_checks() {
 # ===========================================================================
 main() {
     local tempdir=""
-    trap 'rm -rf "${tempdir}"' EXIT
+    trap 'rm -rf "${tempdir:-}"' EXIT
     trap 'on_error "$?"' ERR
 
     parse_args "$@"
