@@ -183,6 +183,7 @@ declare -a STAGES=(
     "optional|scripts/30-services/sonarr.sh"
     "optional|scripts/30-services/bazarr.sh"
     "optional|scripts/30-services/calibre.sh"
+    "optional|scripts/30-services/kavita.sh"
     "optional|scripts/30-services/plex.sh"
     "optional|scripts/30-services/minidlna.sh"
     "optional|scripts/30-services/amule.sh"
