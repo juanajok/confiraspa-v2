@@ -52,6 +52,7 @@ readonly FW_WEBMIN_PORT="${WEBMIN_PORT:-10000}"
 readonly FW_TRANSMISSION_WEB="${TRANSMISSION_WEB_PORT:-9091}"
 readonly FW_AMULE_WEB="4711"
 readonly FW_CALIBRE_PORT="${CALIBRE_PORT:-8083}"
+readonly FW_KAVITA_PORT="${KAVITA_PORT:-5000}"
 readonly FW_BAZARR_PORT="${BAZARR_PORT:-6767}"
 readonly FW_XRDP_PORT="3389"
 readonly FW_VNC_REALVNC="5900"
@@ -201,6 +202,7 @@ configure_private_zone() {
 
     # Multimedia
     allow_lan "${FW_CALIBRE_PORT}" "tcp" "Calibre Content Server"
+    allow_lan "${FW_KAVITA_PORT}" "tcp" "Kavita (cómics/manga/libros)"
     allow_lan "${FW_BAZARR_PORT}" "tcp" "Bazarr Subtítulos"
 
     # MiniDLNA — DLNA/UPnP para Smart TVs (LAN only)
