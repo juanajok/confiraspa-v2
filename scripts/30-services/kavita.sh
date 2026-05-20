@@ -201,25 +201,62 @@ install_kavita_release() {
         exit 1
     fi
 
+    # Verificar espacio antes de descargar: ~150 MB binario + margen para release anterior
+    check_disk_space "${KAVITA_BASE_DIR}" 400
+
     execute_cmd "mkdir -p '${release_dir}'" "Creando directorio de release"
 
+    # Sondear estructura del tarball: si el primer entry es un directorio (termina en /)
+    # aplicar --strip-components=1 para normalizar la raíz del release.
+    # Kavita ha cambiado el layout de su tarball entre versiones; no asumir estructura fija.
+    local strip_components=0
+    local first_entry
+    first_entry="$(tar -tzf "${tmp_tar}" 2>/dev/null | head -1)"
+    if [[ "${first_entry}" == */ ]]; then
+        strip_components=1
+        log_info "Subdirectorio raíz '${first_entry%/}' detectado, normalizando con --strip-components=1"
+    fi
+
     log_info "Extrayendo en ${release_dir}..."
-    # El tar.gz de Kavita para Linux extrae los ficheros en la raíz (sin subdirectorio)
-    if ! tar -xzf "${tmp_tar}" -C "${release_dir}"; then
+    if ! tar -xzf "${tmp_tar}" -C "${release_dir}" --strip-components="${strip_components}"; then
         log_error "Fallo al extraer el archivo de Kavita."
         rm -rf "${tmp_dir}" "${release_dir}"
         exit 1
     fi
     rm -rf "${tmp_dir}"
 
-    if [[ ! -f "${release_dir}/Kavita" ]]; then
-        log_error "Binario no encontrado en ${release_dir}/Kavita tras la extracción."
+    # Detectar el binario: no asumimos nombre exacto ni profundidad fija
+    local kavita_bin
+    kavita_bin="$(find "${release_dir}" -maxdepth 2 -type f -perm -111 \
+        \( -iname "kavita" \) | head -n1)"
+
+    if [[ -z "${kavita_bin}" ]]; then
+        log_error "Ejecutable 'kavita' no encontrado en ${release_dir} (búsqueda maxdepth 2)."
+        log_error "Estructura extraída del release:"
+        while IFS= read -r entry; do
+            log_error "  ${entry}"
+        done < <(find "${release_dir}" -maxdepth 3 | sort)
         rm -rf "${release_dir}"
         exit 1
     fi
 
+    log_info "Binario detectado: ${kavita_bin}"
+
+    # Si el binario quedó anidado (strip insuficiente), mover todo el contenido a la raíz.
+    # Esto ocurre si el tarball tiene >1 nivel de anidamiento no detectado por first_entry.
+    # RISK: mv falla si hay colisión de nombres. El release_dir es nuevo y creado por
+    # este script, por lo que no hay contenido previo → colisión imposible.
+    local bin_dir
+    bin_dir="$(dirname "${kavita_bin}")"
+    if [[ "${bin_dir}" != "${release_dir}" ]]; then
+        log_warning "Anidamiento adicional en '${bin_dir}', normalizando estructura..."
+        execute_cmd "find '${bin_dir}' -mindepth 1 -maxdepth 1 -exec mv -t '${release_dir}/' {} +" \
+            "Moviendo contenido a raíz de release"
+        execute_cmd "rmdir '${bin_dir}'" "Eliminando subdirectorio vacío"
+    fi
+
     # Symlink de datos: Kavita busca config/ relativo a WorkingDirectory
-    # SECURITY: ruta absoluta para que el symlink sea estable tras cambiar de release
+    # SECURITY: ruta absoluta → estable tras cambios de release
     ln -sfn "${KAVITA_DATA_DIR}" "${release_dir}/config"
 
     activate_release "${release_dir}"
@@ -292,7 +329,17 @@ setup_user_and_permissions() {
     # SECURITY: el aislamiento real lo provee el sandboxing systemd (ProtectSystem=strict)
     execute_cmd "chown -R '${SERVICE_NAME}:${SERVICE_NAME}' '${KAVITA_BASE_DIR}'" \
         "Asignando propiedad de ${KAVITA_BASE_DIR}"
-    execute_cmd "chmod 755 '${KAVITA_CURRENT}/Kavita'" "Permisos del binario Kavita"
+
+    # Detectar el binario a través del symlink current (no asumir ruta fija)
+    # -L sigue symlinks para que find resuelva /opt/kavita/current → release dir
+    local kavita_bin
+    kavita_bin="$(find -L "${KAVITA_CURRENT}" -maxdepth 1 -type f -perm -111 \
+        \( -iname "kavita" \) 2>/dev/null | head -n1)"
+    if [[ -n "${kavita_bin}" ]]; then
+        execute_cmd "chmod 755 '${kavita_bin}'" "Permisos del binario Kavita"
+    else
+        log_warning "Binario kavita no encontrado bajo ${KAVITA_CURRENT} para chmod (dry-run o instalación pendiente)."
+    fi
 }
 
 # ===========================================================================
