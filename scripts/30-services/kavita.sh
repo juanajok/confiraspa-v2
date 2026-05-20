@@ -228,13 +228,13 @@ install_kavita_release() {
     fi
     rm -rf "${tmp_dir}"
 
-    # Detectar el binario: no asumimos nombre exacto ni profundidad fija
+    # Detectar el binario por nombre (sin -perm -111): Kavita ≥ v0.9 empaqueta el
+    # binario sin execute bit en el tarball. Lo añadimos nosotros tras la extracción.
     local kavita_bin
-    kavita_bin="$(find "${release_dir}" -maxdepth 2 -type f -perm -111 \
-        \( -iname "kavita" \) | head -n1)"
+    kavita_bin="$(find "${release_dir}" -maxdepth 2 -type f -iname "kavita" | head -n1)"
 
     if [[ -z "${kavita_bin}" ]]; then
-        log_error "Ejecutable 'kavita' no encontrado en ${release_dir} (búsqueda maxdepth 2)."
+        log_error "Archivo 'kavita' no encontrado en ${release_dir} (búsqueda maxdepth 2)."
         log_error "Estructura extraída del release:"
         while IFS= read -r entry; do
             log_error "  ${entry}"
@@ -244,11 +244,10 @@ install_kavita_release() {
     fi
 
     log_info "Binario detectado: ${kavita_bin}"
+    # Asegurar execute bit — el tarball puede no traerlo puesto
+    execute_cmd "chmod +x '${kavita_bin}'" "Marcando binario como ejecutable"
 
     # Si el binario quedó anidado (strip insuficiente), mover todo el contenido a la raíz.
-    # Esto ocurre si el tarball tiene >1 nivel de anidamiento no detectado por first_entry.
-    # RISK: mv falla si hay colisión de nombres. El release_dir es nuevo y creado por
-    # este script, por lo que no hay contenido previo → colisión imposible.
     local bin_dir
     bin_dir="$(dirname "${kavita_bin}")"
     if [[ "${bin_dir}" != "${release_dir}" ]]; then
@@ -256,6 +255,22 @@ install_kavita_release() {
         execute_cmd "find '${bin_dir}' -mindepth 1 -maxdepth 1 -exec mv -t '${release_dir}/' {} +" \
             "Moviendo contenido a raíz de release"
         execute_cmd "rmdir '${bin_dir}'" "Eliminando subdirectorio vacío"
+    fi
+
+    # El tarball incluye config/ con appsettings-init.json que Kavita necesita en el
+    # primer arranque. Sembramos el data dir con esos ficheros (sólo si está vacío)
+    # y reemplazamos config/ por un symlink → /var/lib/kavita/ para persistencia FHS.
+    execute_cmd "mkdir -p '${KAVITA_DATA_DIR}'" "Creando directorio de datos"
+    if [[ -d "${release_dir}/config" && ! -L "${release_dir}/config" ]]; then
+        # Copiar ficheros de init al data dir solo si no existen aún (idempotente)
+        find "${release_dir}/config" -maxdepth 1 -type f | while IFS= read -r init_file; do
+            local dest="${KAVITA_DATA_DIR}/$(basename "${init_file}")"
+            if [[ ! -f "${dest}" ]]; then
+                cp "${init_file}" "${dest}"
+                log_info "Init file sembrado en data dir: $(basename "${init_file}")"
+            fi
+        done
+        execute_cmd "rm -rf '${release_dir}/config'" "Eliminando config/ del release (reemplazada por symlink)"
     fi
 
     # Symlink de datos: Kavita busca config/ relativo a WorkingDirectory
@@ -336,8 +351,8 @@ setup_user_and_permissions() {
     # Detectar el binario a través del symlink current (no asumir ruta fija)
     # -L sigue symlinks para que find resuelva /opt/kavita/current → release dir
     local kavita_bin
-    kavita_bin="$(find -L "${KAVITA_CURRENT}" -maxdepth 1 -type f -perm -111 \
-        \( -iname "kavita" \) 2>/dev/null | head -n1)"
+    kavita_bin="$(find -L "${KAVITA_CURRENT}" -maxdepth 1 -type f \
+        -iname "kavita" 2>/dev/null | head -n1)"
     if [[ -n "${kavita_bin}" ]]; then
         execute_cmd "chmod 755 '${kavita_bin}'" "Permisos del binario Kavita"
     else
