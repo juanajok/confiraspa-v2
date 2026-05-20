@@ -209,9 +209,12 @@ install_kavita_release() {
     # Sondear estructura del tarball: si el primer entry es un directorio (termina en /)
     # aplicar --strip-components=1 para normalizar la raíz del release.
     # Kavita ha cambiado el layout de su tarball entre versiones; no asumir estructura fija.
+    #
+    # Proceso de sustitución en vez de pipe: "tar -tzf | head -1" con pipefail activo
+    # provoca SIGPIPE (exit 141) porque head cierra el pipe al leer la primera línea.
     local strip_components=0
-    local first_entry
-    first_entry="$(tar -tzf "${tmp_tar}" 2>/dev/null | head -1)"
+    local first_entry=""
+    while IFS= read -r first_entry; do break; done < <(tar -tzf "${tmp_tar}" 2>/dev/null)
     if [[ "${first_entry}" == */ ]]; then
         strip_components=1
         log_info "Subdirectorio raíz '${first_entry%/}' detectado, normalizando con --strip-components=1"
