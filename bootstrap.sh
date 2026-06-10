@@ -1,30 +1,32 @@
 #!/bin/bash
-# bootstrap.sh — Versión Corregida 2.3.1
+# bootstrap.sh — Versión Corregida 2.3.2
+# IMPORTANTE: lib/utils.sh no está disponible aquí aún — usar echo, no log_info.
 set -euo pipefail
 
-# C1: Espacio corregido entre if y [
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: Debe ejecutarse como root (sudo ./bootstrap.sh)"
     exit 1
 fi
 
-echo "📦 Instalando dependencias base..."
+echo "Instalando dependencias base..."
 apt-get update -qq
-apt-get install -y git jq curl
+apt-get install -y git jq curl gettext-base
 
-# C4: Hacer ejecutables los scripts SIEMPRE, antes de entrar en la lógica del .env
-log_info "Asegurando permisos de ejecución en scripts..."
-find . -name "*.sh" -exec chmod +x {} +
+# Hacer ejecutables los scripts SIEMPRE, antes de entrar en la lógica del .env
+echo "Asegurando permisos de ejecución en scripts..."
+find "${SCRIPT_DIR}" -name "*.sh" -exec chmod +x {} +
 
-if [ ! -f .env ]; then
-    log_warning "No se encontró .env. Creando desde plantilla..."
-    cp .env.example .env
+if [ ! -f "${SCRIPT_DIR}/.env" ]; then
+    echo "No se encontró .env. Creando desde plantilla..."
+    cp "${SCRIPT_DIR}/.env.example" "${SCRIPT_DIR}/.env"
     echo "-------------------------------------------------------"
-    echo "⚠️ ACCIÓN REQUERIDA: Edita el archivo .env ahora mismo."
-    echo "Comando: nano .env"
+    echo "ACCION REQUERIDA: Edita el archivo .env ahora mismo."
+    echo "Comando: nano ${SCRIPT_DIR}/.env"
     echo "-------------------------------------------------------"
     # Salimos aquí para que el usuario configure y luego lance install.sh
     exit 0
 fi
 
-echo "✅ Entorno listo. Ejecuta: sudo ./install.sh"
+echo "Entorno listo. Ejecuta: sudo ./install.sh"

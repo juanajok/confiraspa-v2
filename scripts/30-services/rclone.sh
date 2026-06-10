@@ -24,9 +24,6 @@ log_section "Instalación de Herramienta Cloud (Rclone)"
 
 # 1. Validaciones
 validate_root
-ensure_package "curl"
-ensure_package "unzip"
-ensure_package "man-db" 
 
 # 2. Instalación de FUSE (Crítico para 'rclone mount')
 log_info "Configurando soporte FUSE (File System in User Space)..."
@@ -42,33 +39,23 @@ else
         execute_cmd "sed -i 's/^#user_allow_other/user_allow_other/' $FUSE_CONF"
     else
         log_info "Añadiendo 'user_allow_other' a $FUSE_CONF..."
-        # Usamos tee -a para añadir al final de forma segura con sudo
         echo "user_allow_other" | execute_cmd "tee -a $FUSE_CONF"
     fi
 fi
 
 # 3. Instalación de Rclone (Idempotente)
-if command -v rclone &> /dev/null; then
-    VERSION=$(rclone --version | head -n 1)
-    log_success "Rclone ya está instalado: $VERSION"
-else
-    log_info "Descargando instalador oficial..."
-    INSTALLER="/tmp/rclone_install.sh"
-    
-    # Descarga trazeada
-    execute_cmd "curl -fsSL https://rclone.org/install.sh -o $INSTALLER" "Descarga completada"
-    
-    # Ejecución
-    execute_cmd "bash $INSTALLER" "Instalando binarios Rclone"
-    rm -f "$INSTALLER"
-fi
+# SECURITY: El instalador curl|bash oficial ejecuta código remoto sin verificación
+# de integridad. Se usa el paquete del repo Debian, que viene firmado con la clave
+# APT del proyecto y es auditado por los mantenedores de la distribución.
+log_info "Instalando rclone desde repositorio Debian..."
+ensure_package "rclone"
 
 # 4. Gestión de Configuración (Restauración Segura)
 if [ ! -d "$RCLONE_CONFIG_DIR" ]; then
     log_info "Creando directorio de configuración..."
-    mkdir -p "$RCLONE_CONFIG_DIR"
-    # Permisos 700: Solo root puede entrar aquí (Seguridad Premium)
-    chmod 700 "$RCLONE_CONFIG_DIR"
+    execute_cmd "mkdir -p $RCLONE_CONFIG_DIR" "Creando directorio de configuración rclone"
+    # SECURITY: Solo root puede entrar — el directorio contiene tokens de acceso cloud.
+    execute_cmd "chmod 700 $RCLONE_CONFIG_DIR" "Restringiendo permisos del directorio rclone"
 fi
 
 # Estrategia de Restauración
