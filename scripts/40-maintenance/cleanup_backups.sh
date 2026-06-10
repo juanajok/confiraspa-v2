@@ -174,7 +174,10 @@ process_policy() {
         # RISK: Elimina backups antiguos según la política de retención.
         # Mitigación: solo actúa en rutas validadas por is_safe_path (blacklist +
         # profundidad mínima 3) y solo sobre ficheros que exceden el límite 'keep'.
-        if execute_cmd "rm -f '${file}'" "Eliminado: $(basename "${file}")"; then
+        # SECURITY: printf %q neutraliza inyección via nombres de fichero maliciosos.
+        local file_q
+        file_q=$(printf '%q' "${file}")
+        if execute_cmd "rm -f ${file_q}" "Eliminado: $(basename "${file}")"; then
             (( deleted_count++ )) || true  # (( )) retorna 1 cuando resultado es 0
             (( bytes_saved += file_size )) || true  # Idem
         else

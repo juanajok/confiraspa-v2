@@ -60,7 +60,7 @@ address=0.0.0.0
 port=${VNC_PORT_WAYLAND}
 enable_auth=true
 username=${VNC_USER}
-password=${SYS_PASSWORD:-raspberry}
+password=${SYS_PASSWORD}
 EOF
 
         chown -R "${VNC_USER}:${VNC_USER}" "${config_dir}"
@@ -126,7 +126,7 @@ setup_tigervnc() {
 
         if [[ ! -f "$passwd_file" ]]; then
             log_info "Configurando contraseña TigerVNC..."
-            printf '%s\n' "${SYS_PASSWORD:-raspberry}" | vncpasswd -f > "$passwd_file"
+            printf '%s\n' "${SYS_PASSWORD}" | vncpasswd -f > "$passwd_file"
             chown "${VNC_USER}:${VNC_USER}" "$passwd_file"
             chmod 600 "$passwd_file"
         fi
@@ -185,6 +185,9 @@ main() {
 
     validate_root
     require_system_commands systemctl ps grep dpkg-query
+    # SECURITY: 'raspberry' es la credencial más conocida del ecosistema RPi.
+    # Abortar si SYS_PASSWORD no está definida explícitamente en .env.
+    validate_var "SYS_PASSWORD"
 
     # Eliminar RealVNC si existe
     if dpkg -l | grep -q realvnc-vnc-server; then

@@ -170,15 +170,16 @@ install_crontab_if_changed() {
     # Comparar solo el bloque gestionado — ignora cambios en tareas externas
     if [[ -s "${current_block}" ]] && cmp -s "${new_block}" "${current_block}"; then
         log_info "Tareas programadas sin cambios."
-        return 1
+        return 0
     fi
 
     # Hay cambios — construir crontab completo e instalar
     local candidate
     candidate=$(build_candidate "${temp_dir}")
 
-    # Validación básica: el candidato debe tener al menos una línea con un schedule
-    if ! grep -qE '^[0-9*]' "${candidate}"; then
+    # Validación básica: el candidato debe tener al menos una línea con un schedule.
+    # El patrón cubre campos numéricos/wildcard (0-9, *) y expresiones @reboot/@daily/etc.
+    if ! grep -qE '^(@(reboot|yearly|annually|monthly|weekly|daily|hourly)|[0-9*])' "${candidate}"; then
         log_error "El crontab candidato no contiene ninguna tarea válida."
         return 1
     fi

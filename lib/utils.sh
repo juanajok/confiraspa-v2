@@ -85,6 +85,8 @@ log_debug() {
 init_logging() {
     mkdir -p "$(dirname "$1")"
     touch "$1"
+    # SECURITY: El log recibe salida completa de comandos; no debe ser mundo-legible.
+    chmod 640 "$1"
 }
 
 # --- 3. INICIALIZACIÓN DE PATHS ---

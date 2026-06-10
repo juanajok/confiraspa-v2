@@ -100,8 +100,8 @@ EOF
     execute_cmd "cp ${candidate_default} ${DEFAULT_FILE}" "Instalando configuración de demonio"
 
     local amule_pass_md5 amule_web_pass_md5
-    amule_pass_md5=$(printf '%s' "${AMULE_PASS:-raspberry}" | md5sum | awk '{print $1}')
-    amule_web_pass_md5=$(printf '%s' "${AMULE_WEB_PASS:-raspberry}" | md5sum | awk '{print $1}')
+    amule_pass_md5=$(printf '%s' "${AMULE_PASS}" | md5sum | awk '{print $1}')
+    amule_web_pass_md5=$(printf '%s' "${AMULE_WEB_PASS}" | md5sum | awk '{print $1}')
 
     export AMULE_HOME DIR_TORRENTS DIR_TORRENTS_TEMP HOSTNAME
     export AMULE_PASS_MD5="${amule_pass_md5}"
@@ -120,6 +120,10 @@ EOF
 main() {
     validate_root
     require_system_commands install systemctl id jq md5sum envsubst
+    # SECURITY: 'raspberry' es la credencial más conocida del ecosistema RPi.
+    # Abortar si las contraseñas no están definidas explícitamente en .env.
+    validate_var "AMULE_PASS"
+    validate_var "AMULE_WEB_PASS"
 
     log_section "Configuración de Red P2P (aMule)"
 

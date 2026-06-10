@@ -141,6 +141,28 @@ run_backup_job() {
         return 0  # Continuamos con el siguiente job sin abortar el script
     fi
 
+    # RISK: Si el disco de destino no está montado (nofail en fstab), mkdir -p crea
+    # la ruta en el rootfs de la SD y rsync vuelca todo ahí hasta llenarlo y dejar
+    # el servidor inoperable. Verificar que el destino esté bajo un punto de montaje
+    # real antes de cualquier escritura.
+    # La comprobación se hace con mountpoint(1) sobre el primer componente del path
+    # que exista en el árbol de directorios.
+    local dest_check="${dest}"
+    while [[ -n "${dest_check}" && "${dest_check}" != "/" ]]; do
+        if [[ -e "${dest_check}" ]]; then
+            break
+        fi
+        dest_check="$(dirname "${dest_check}")"
+    done
+    if ! mountpoint -q "${dest_check}" 2>/dev/null && [[ "${dest_check}" != "/" ]]; then
+        log_error "El destino '${dest}' no está bajo un punto de montaje activo (comprobado en '${dest_check}')."
+        log_error "Posible disco de backup desconectado. Saltando job '${name}' para proteger el sistema de ficheros raíz."
+        return 0
+    fi
+
+    # Verificar espacio disponible antes de volcar datos en el destino
+    check_disk_space "${dest_check}" 1024
+
     # Crear destino si no existe
     if [[ ! -d "${dest}" ]]; then
         execute_cmd "mkdir -p '${dest}'" \

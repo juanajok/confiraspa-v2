@@ -200,9 +200,12 @@ cleanup_junk_in_dir() {
     # RISK: Elimina ficheros basándose en extensión dentro de subdirectorios de
     # SOURCE_DIR. No afecta al directorio raíz SOURCE_DIR (guarded en el caller).
     # Mitigación: solo actúa en subdirectorios, solo extensiones de la allowlist.
-    local junk_file
+    local junk_file junk_file_q
     while IFS= read -r junk_file; do
-        execute_cmd "rm -f '${junk_file}'" "Junk eliminado: $(basename "${junk_file}")" >&2
+        # SECURITY: printf %q escapa el path antes de interpolarlo en bash -c,
+        # neutralizando inyección via nombres de fichero maliciosos (eg. x'$(cmd)').
+        junk_file_q=$(printf '%q' "${junk_file}")
+        execute_cmd "rm -f ${junk_file_q}" "Junk eliminado: $(basename "${junk_file}")" >&2
         (( count++ )) || true  # (( )) retorna 1 cuando el resultado es 0 (false en aritmética)
     done < <(find "${dir_path}" -maxdepth 1 -type f -regextype posix-extended \
         -iregex ".*\.(${JUNK_EXTENSIONS})" 2>/dev/null)
@@ -210,7 +213,9 @@ cleanup_junk_in_dir() {
     # Si el directorio quedó vacío, eliminarlo
     # RISK: rmdir solo funciona si el directorio está realmente vacío — seguro.
     if [[ -d "${dir_path}" ]] && [[ -z "$(ls -A "${dir_path}" 2>/dev/null)" ]]; then
-        execute_cmd "rmdir '${dir_path}'" "Directorio vacío eliminado: ${dir_path}" >&2
+        local dir_path_q
+        dir_path_q=$(printf '%q' "${dir_path}")
+        execute_cmd "rmdir ${dir_path_q}" "Directorio vacío eliminado: ${dir_path}" >&2
     fi
 
     echo "${count}"
@@ -255,7 +260,9 @@ run_deduplication() {
                 # Mitigación: solo se borran ficheros que existen como duplicados
                 # verificados (mismo inodo o mismo contenido byte a byte) en las
                 # bibliotecas destino. El fichero original en la biblioteca no se toca.
-                if execute_cmd "rm -f '${file_path}'" "Eliminado: ${file_basename}"; then
+                local file_path_q
+                file_path_q=$(printf '%q' "${file_path}")
+                if execute_cmd "rm -f ${file_path_q}" "Eliminado: ${file_basename}"; then
                     (( total_deleted++ )) || true  # (( )) retorna 1 cuando resultado es 0
                     (( bytes_saved += file_size )) || true  # Idem
 

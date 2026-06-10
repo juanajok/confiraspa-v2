@@ -109,8 +109,12 @@ log_info "Generando settings.json desde plantilla..."
 envsubst '${DIR_TORRENTS} ${DIR_INCOMPLETE} ${TRANSMISSION_USER} ${TRANSMISSION_PASS} ${TRANSMISSION_PEER_PORT}' \
     < "$TEMPLATE_FILE" | execute_cmd "tee $TARGET_CONF" > /dev/null
 
-# Validación de integridad JSON (Safety Net)
-if ! run_check "jq . $TARGET_CONF" "Validando integridad del JSON de Transmission"; then
+# SECURITY: El fichero contiene rpc-password en claro; solo el daemon debe leerlo.
+execute_cmd "chmod 600 $TARGET_CONF" "Restringiendo permisos de settings.json"
+
+# Validación de integridad JSON — 'jq empty' valida sin volcar el contenido al log
+# SECURITY: 'jq .' vuelca settings.json completo (con rpc-password) al log de sesión
+if ! run_check "jq empty $TARGET_CONF" "Validando integridad del JSON de Transmission"; then
     log_error "El JSON generado es inválido. Restaurando backup..."
     if [[ -n "${BACKUP_FILE:-}" && -f "$BACKUP_FILE" ]]; then cp "$BACKUP_FILE" "$TARGET_CONF"; fi
     exit 1

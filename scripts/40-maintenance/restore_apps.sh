@@ -146,6 +146,11 @@ sanitize_permission() {
 }
 
 # --- Restaurar ficheros desde un backup ZIP (*Arr) ---
+# Orden de operaciones para evitar pérdida de datos (C3):
+#   1. Extraer a tmpdir         — ZIP se verifica ANTES de tocar nada en producción
+#   2. create_backup de los vivos — rollback disponible si algo falla después
+#   3. Limpiar WAL de SQLite    — solo si el .db nuevo fue extraído correctamente
+#   4. Mover desde tmpdir        — la BD original ya tiene backup en este punto
 restore_from_zip() {
     local app_key="$1"
     local backup_dir="$2"
@@ -165,30 +170,53 @@ restore_from_zip() {
     local files_json
     files_json=$(jq -r ".\"${app_key}\".files_to_restore[]" "${CONFIG_FILE}")
 
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        while IFS= read -r file; do
+            [[ -z "${file}" ]] && continue
+            log_info "  [DRY-RUN] Restauraría: ${file}"
+        done < <(echo "${files_json}")
+        return 0
+    fi
+
+    # Directorio temporal de extracción — limpiado al salir de la función
+    local extract_tmp
+    extract_tmp=$(mktemp -d)
+    trap 'rm -rf "${extract_tmp}"' RETURN
+
     local file
     while IFS= read -r file; do
         [[ -z "${file}" ]] && continue
 
-        if [[ "${DRY_RUN}" == "true" ]]; then
-            log_info "  [DRY-RUN] Restauraría: ${file}"
+        # 1. Extraer al tmpdir — falla aquí si el ZIP está corrupto o no contiene el fichero
+        if ! unzip -j -o "${latest_backup}" "${file}" -d "${extract_tmp}" > /dev/null 2>&1; then
+            log_warning "  -> No se encontró '${file}' en el ZIP. Omitido."
             continue
         fi
 
-        # Limpiar archivos residuales de SQLite antes de restaurar.
-        # Cuando SQLite corre, crea .db-wal y .db-shm junto a la BD.
-        # Si restauramos un .db nuevo sin eliminarlos, SQLite intenta
-        # hacer replay del WAL viejo sobre la BD nueva y corrompe o falla.
-        if [[ "${file}" == *.db ]]; then
-            rm -f "${restore_dir}/${file}" "${restore_dir}/${file}-wal" "${restore_dir}/${file}-shm" 2>/dev/null || true
-            log_info "  Limpiados residuos SQLite: ${file}, ${file}-wal, ${file}-shm"
+        local live_file="${restore_dir}/${file}"
+        local extracted="${extract_tmp}/$(basename "${file}")"
+
+        # 2. Backup del fichero vivo (ahora que sabemos que el ZIP es válido)
+        if [[ -f "${live_file}" ]]; then
+            create_backup "${live_file}"
         fi
 
-        if unzip -j -o "${latest_backup}" "${file}" -d "${restore_dir}" > /dev/null 2>&1; then
+        # 3. Limpiar residuos WAL de SQLite (solo después de tener backup)
+        # Si restauramos un .db nuevo sin eliminarlos, SQLite hace replay del WAL
+        # viejo sobre la BD nueva y la corrompe.
+        if [[ "${file}" == *.db ]]; then
+            rm -f "${live_file}-wal" "${live_file}-shm" 2>/dev/null || true
+            log_info "  Limpiados residuos SQLite: ${file}-wal, ${file}-shm"
+        fi
+
+        # 4. Mover el fichero extraído al destino final
+        if mv "${extracted}" "${live_file}"; then
             log_info "  -> Restaurado: ${file}"
         else
-            log_warning "  -> No se encontró '${file}' dentro del ZIP. Omitido."
+            log_error "  -> Fallo al mover '${file}' al destino. El backup está en ${live_file}.bak.*"
+            return 1
         fi
-    done <<< "${files_json}"
+    done < <(echo "${files_json}")
 }
 
 # --- Restaurar ficheros sueltos (Plex, rclone) ---
