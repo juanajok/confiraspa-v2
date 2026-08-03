@@ -144,24 +144,35 @@ run_backup_job() {
     # RISK: Si el disco de destino no está montado (nofail en fstab), mkdir -p crea
     # la ruta en el rootfs de la SD y rsync vuelca todo ahí hasta llenarlo y dejar
     # el servidor inoperable. Verificar que el destino esté bajo un punto de montaje
-    # real antes de cualquier escritura.
-    # La comprobación se hace con mountpoint(1) sobre el primer componente del path
-    # que exista en el árbol de directorios.
+    # real (no en el rootfs) antes de cualquier escritura.
+    #
+    # FIX: la versión anterior usaba 'mountpoint -q' sobre el primer componente
+    # existente del path, pero eso comprueba si esa ruta ES un mountpoint, no si
+    # ESTÁ BAJO uno — en régimen estable el destino ya existe como subdirectorio
+    # de /media/Backup, nunca es el mountpoint en sí, así que el check saltaba
+    # todos los jobs siempre. 'findmnt --target' resuelve el filesystem que
+    # contiene la ruta (recorre hacia arriba); si resuelve a "/" es que estamos
+    # en el rootfs y el disco de backup no está montado.
     local dest_check="${dest}"
-    while [[ -n "${dest_check}" && "${dest_check}" != "/" ]]; do
-        if [[ -e "${dest_check}" ]]; then
-            break
-        fi
+    while [[ -n "${dest_check}" && "${dest_check}" != "/" && ! -e "${dest_check}" ]]; do
         dest_check="$(dirname "${dest_check}")"
     done
-    if ! mountpoint -q "${dest_check}" 2>/dev/null && [[ "${dest_check}" != "/" ]]; then
-        log_error "El destino '${dest}' no está bajo un punto de montaje activo (comprobado en '${dest_check}')."
+    local mount_target
+    mount_target="$(findmnt -no TARGET --target "${dest_check}" 2>/dev/null || echo "/")"
+    if [[ "${mount_target}" == "/" ]]; then
+        log_error "El destino '${dest}' no está en un disco montado (resuelve a la raíz '/')."
         log_error "Posible disco de backup desconectado. Saltando job '${name}' para proteger el sistema de ficheros raíz."
         return 0
     fi
 
-    # Verificar espacio disponible antes de volcar datos en el destino
-    check_disk_space "${dest_check}" 1024
+    # FIX: run_backup_job se invoca dentro de un 'if' en main() (patrón
+    # 'if run_backup_job ...; then'), lo que desactiva 'set -e' para todo el
+    # cuerpo de esta función — un check_disk_space fallido sin '||' explícito
+    # no detiene la ejecución y rsync corre igualmente contra un disco lleno.
+    if ! check_disk_space "${dest_check}" 1024; then
+        log_error "Saltando job '${name}' por falta de espacio en '${dest_check}'."
+        return 0
+    fi
 
     # Crear destino si no existe
     if [[ ! -d "${dest}" ]]; then
@@ -203,7 +214,7 @@ main() {
 
     # --- 1. Validaciones ---
     validate_root
-    require_system_commands rsync jq find
+    require_system_commands rsync jq find findmnt
 
     if [[ ! -f "${CONFIG_FILE}" ]]; then
         log_error "No se encuentra el archivo de definición de backups: ${CONFIG_FILE}"
