@@ -47,6 +47,37 @@ readonly CONFIG_FILE="${REPO_ROOT}/configs/static/permissions.json"
 readonly DIR_PERM="775"
 readonly FILE_PERM="664"
 
+# Rutas que NUNCA deben procesarse (FIX 20.3).
+readonly BLACKLISTED_PATHS=(
+    "" "/" "/root" "/home" "/bin" "/etc" "/usr" "/var"
+    "/media" "/mnt" "/opt" "/tmp" "/boot" "/dev" "/proc" "/sys" "/run"
+)
+
+# --- Validar que una ruta es segura para chown/chmod recursivo ---
+# FIX 20.3: blacklist canónica + realpath (resuelve symlinks) + freno a
+# profundidad 0-1 (exige al menos /media/ALGO).
+is_safe_path() {
+    local dir="${1%/}"
+    local resolved
+    resolved="$(realpath -m "${dir}" 2>/dev/null)" || return 1
+    [[ -z "${resolved}" ]] && return 1
+
+    local blacklisted
+    for blacklisted in "${BLACKLISTED_PATHS[@]}"; do
+        if [[ "${resolved}" == "${blacklisted}" ]]; then
+            return 1
+        fi
+    done
+
+    local depth
+    depth=$(echo "${resolved}" | tr '/' '\n' | grep -c '.')
+    if [[ "${depth}" -lt 2 ]]; then
+        return 1
+    fi
+
+    return 0
+}
+
 # ===========================================================================
 # FUNCIONES LOCALES
 # ===========================================================================
@@ -117,11 +148,12 @@ fix_ownership() {
         return 0
     fi
 
+    # FIX 5.1: find -xdev no cruza mountpoints (chown -R sí lo haría).
     local bad_count
-    bad_count=$(find "${dir}" \( ! -user "${target_user}" -o ! -group "${target_group}" \) 2>/dev/null | wc -l)
+    bad_count=$(find "${dir}" -xdev \( ! -user "${target_user}" -o ! -group "${target_group}" \) 2>/dev/null | wc -l)
 
     if [[ "${bad_count}" -gt 0 ]]; then
-        execute_cmd "chown -R '${target_user}:${target_group}' '${dir}'" \
+        execute_cmd "find '${dir}' -xdev \( ! -user '${target_user}' -o ! -group '${target_group}' \) -exec chown '${target_user}:${target_group}' {} +" \
             "Corrigiendo ${bad_count} propietarios en ${dir}"
     else
         log_info "     Propietarios correctos."
@@ -139,12 +171,15 @@ fix_dir_permissions() {
         return 0
     fi
 
+    # FIX 20.2: '! -perm -2000' excluye directorios con setgid (2775) — antes
+    # '! -perm 775' los incluía y el chmod 775 les quitaba el bit setgid.
+    # FIX 5.1: -xdev no cruza mountpoints.
     local bad_count
-    bad_count=$(find "${dir}" -type d ! -perm "${DIR_PERM}" 2>/dev/null | wc -l)
+    bad_count=$(find "${dir}" -xdev -type d ! -perm -2000 ! -perm "${DIR_PERM}" 2>/dev/null | wc -l)
 
     if [[ "${bad_count}" -gt 0 ]]; then
-        execute_cmd "find '${dir}' -type d ! -perm '${DIR_PERM}' -exec chmod '${DIR_PERM}' {} +" \
-            "Corrigiendo ${bad_count} directorios en ${dir}"
+        execute_cmd "find '${dir}' -xdev -type d ! -perm -2000 ! -perm '${DIR_PERM}' -exec chmod '${DIR_PERM}' {} +" \
+            "Corrigiendo ${bad_count} directorios en ${dir} (preservando setgid)"
     else
         log_info "     Directorios correctos."
     fi
@@ -164,12 +199,13 @@ fix_file_permissions() {
         return 0
     fi
 
-    # Solo ficheros que NO son ejecutables y tienen permisos incorrectos
+    # Solo ficheros que NO son ejecutables y tienen permisos incorrectos.
+    # FIX 5.1: -xdev no cruza mountpoints.
     local bad_count
-    bad_count=$(find "${dir}" -type f ! -executable ! -perm "${FILE_PERM}" 2>/dev/null | wc -l)
+    bad_count=$(find "${dir}" -xdev -type f ! -executable ! -perm "${FILE_PERM}" 2>/dev/null | wc -l)
 
     if [[ "${bad_count}" -gt 0 ]]; then
-        execute_cmd "find '${dir}' -type f ! -executable ! -perm '${FILE_PERM}' -exec chmod '${FILE_PERM}' {} +" \
+        execute_cmd "find '${dir}' -xdev -type f ! -executable ! -perm '${FILE_PERM}' -exec chmod '${FILE_PERM}' {} +" \
             "Corrigiendo ${bad_count} archivos en ${dir}"
     else
         log_info "     Archivos correctos."
@@ -188,7 +224,7 @@ main() {
 
     # --- 1. Validaciones ---
     validate_root
-    require_system_commands find chown chmod id wc
+    require_system_commands find chown chmod id wc realpath
     validate_var "ARR_USER" "${ARR_USER:-}"
     validate_var "ARR_GROUP" "${ARR_GROUP:-}"
 
@@ -223,6 +259,12 @@ main() {
     for dir in "${dirs_to_fix[@]}"; do
         if [[ ! -d "${dir}" ]]; then
             log_warning "Directorio no encontrado, saltando: ${dir}"
+            continue
+        fi
+
+        # FIX 20.3: rechazar rutas inseguras (blacklist/depth/realpath) antes de tocar nada.
+        if ! is_safe_path "${dir}"; then
+            log_error "SEGURIDAD: ruta insegura omitida: ${dir}"
             continue
         fi
 
