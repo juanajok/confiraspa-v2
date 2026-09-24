@@ -187,6 +187,12 @@ restore_from_zip() {
     while IFS= read -r file; do
         [[ -z "${file}" ]] && continue
 
+        # SECURITY (5.2): rechazar rutas con '..' o absolutas en files_to_restore.
+        if [[ "${file}" == *".."* || "${file}" == /* ]]; then
+            log_error "  -> '${file}' contiene '..' o es absoluta. Omitida por seguridad."
+            continue
+        fi
+
         # 1. Extraer al tmpdir — falla aquí si el ZIP está corrupto o no contiene el fichero
         if ! unzip -j -o "${latest_backup}" "${file}" -d "${extract_tmp}" > /dev/null 2>&1; then
             log_warning "  -> No se encontró '${file}' en el ZIP. Omitido."
@@ -195,6 +201,14 @@ restore_from_zip() {
 
         local live_file="${restore_dir}/${file}"
         local extracted="${extract_tmp}/$(basename "${file}")"
+
+        # SECURITY (4.2): rechazar entradas que no sean ficheros regulares. Un
+        # symlink plantado en el ZIP + chown/chmod/sed -i = primitiva de root local.
+        if [[ -L "${extracted}" || ! -f "${extracted}" ]]; then
+            log_error "  -> '${file}' no es un fichero regular (posible symlink). Omitido por seguridad."
+            rm -f "${extracted}"
+            continue
+        fi
 
         # 2. Backup del fichero vivo (ahora que sabemos que el ZIP es válido)
         if [[ -f "${live_file}" ]]; then
@@ -232,6 +246,12 @@ restore_loose_files() {
     while IFS= read -r file; do
         [[ -z "${file}" ]] && continue
 
+        # SECURITY (5.2): rechazar rutas con '..' o absolutas.
+        if [[ "${file}" == *".."* || "${file}" == /* ]]; then
+            log_error "  -> '${file}' contiene '..' o es absoluta. Omitida por seguridad."
+            continue
+        fi
+
         local src="${backup_dir}/${file}"
         local dest="${restore_dir}/${file}"
 
@@ -243,6 +263,11 @@ restore_loose_files() {
         if [[ "${DRY_RUN}" == "true" ]]; then
             log_info "  [DRY-RUN] Copiaría: ${file}"
             continue
+        fi
+
+        # FIX 6.2: backup del fichero vivo antes de sobrescribir (antes no se hacía).
+        if [[ -f "${dest}" ]]; then
+            create_backup "${dest}"
         fi
 
         execute_cmd "cp -a '${src}' '${dest}'" \
@@ -300,6 +325,12 @@ fix_bind_address() {
     local config_xml="${restore_dir}/config.xml"
 
     [[ -f "${config_xml}" ]] || return 0
+
+    # SECURITY (4.2): no escribir a través de un symlink (sed -i seguiría el enlace).
+    if [[ -L "${config_xml}" ]]; then
+        log_error "  config.xml es un symlink; no se modifica por seguridad."
+        return 0
+    fi
 
     local current_bind
     current_bind=$(grep -oP '(?<=<BindAddress>)[^<]+' "${config_xml}" 2>/dev/null) || return 0
@@ -364,37 +395,50 @@ process_app() {
         fi
     fi
 
-    # B. Detener servicio si existe y está corriendo
+    # B. Detener servicio si existe y está corriendo (FIX 6.1: se rearranca
+    # SIEMPRE al final, incluso si un paso intermedio falla).
+    local service_stopped=false
     if [[ -n "${APP_SERVICE}" ]]; then
         if check_service_active "${APP_SERVICE}"; then
             execute_cmd "systemctl stop '${APP_SERVICE}'" \
                 "Deteniendo ${APP_SERVICE} para restaurar"
+            service_stopped=true
         fi
     fi
 
-    # C. Crear directorio destino si no existe
-    if [[ ! -d "${restore_dir}" ]]; then
-        execute_cmd "install -d -o '${APP_USER}' -g '${APP_GROUP}' -m 755 '${restore_dir}'" \
-            "Creando directorio destino: ${restore_dir}"
-    fi
+    # C-F. Restauración en un bloque con manejo explícito de error: un fallo
+    # intermedio NO aborta process_app; se rearranca el servicio y se propaga rc≠0.
+    local restore_rc=0
+    (
+        # C. Crear directorio destino si no existe
+        if [[ ! -d "${restore_dir}" ]]; then
+            execute_cmd "install -d -o '${APP_USER}' -g '${APP_GROUP}' -m 755 '${restore_dir}'" \
+                "Creando directorio destino: ${restore_dir}"
+        fi
 
-    # D. Restaurar ficheros según el tipo de backup
-    if [[ "${backup_ext}" == ".zip" ]]; then
-        restore_from_zip "${app_key}" "${backup_dir}" "${backup_ext}" "${restore_dir}"
-    else
-        restore_loose_files "${app_key}" "${backup_dir}" "${restore_dir}"
-    fi
+        # D. Restaurar ficheros según el tipo de backup
+        if [[ "${backup_ext}" == ".zip" ]]; then
+            restore_from_zip "${app_key}" "${backup_dir}" "${backup_ext}" "${restore_dir}"
+        else
+            restore_loose_files "${app_key}" "${backup_dir}" "${restore_dir}"
+        fi
 
-    # E. Aplicar permisos específicos
-    apply_file_permissions "${app_key}" "${restore_dir}" "${APP_USER}" "${APP_GROUP}"
+        # E. Aplicar permisos específicos
+        apply_file_permissions "${app_key}" "${restore_dir}" "${APP_USER}" "${APP_GROUP}"
 
-    # F. Corregir BindAddress si el backup venía con loopback
-    fix_bind_address "${restore_dir}"
+        # F. Corregir BindAddress si el backup venía con loopback
+        fix_bind_address "${restore_dir}"
+    ) || restore_rc=$?
 
-    # G. Reiniciar servicio
-    if [[ -n "${APP_SERVICE}" ]]; then
+    # G. Reiniciar el servicio SIEMPRE que lo hubiéramos detenido.
+    if [[ "${service_stopped}" == true && -n "${APP_SERVICE}" ]]; then
         execute_cmd "systemctl start '${APP_SERVICE}'" \
             "Iniciando ${APP_SERVICE}"
+    fi
+
+    if [[ "${restore_rc}" -ne 0 ]]; then
+        log_error "La restauración de '${app_key}' falló a mitad (rc=${restore_rc}); el servicio ha sido rearrancado."
+        return 1
     fi
 }
 
