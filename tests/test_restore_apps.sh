@@ -24,6 +24,15 @@ fail=0
 # --- 4.2: symlink plantado en ZIP ---
 ln -s /etc/passwd "$TMP/config.xml"
 (cd "$TMP" && zip -qy evil.zip config.xml) >/dev/null 2>&1
+
+# Pre-scan (defensa en profundidad): unzip -Zl marca el symlink con modo 'l'
+if unzip -Zl "$TMP/evil.zip" 2>/dev/null | grep -qE '^l'; then
+    echo "OK   pre-scan detecta symlink (unzip -Zl, modo 'l')"
+else
+    echo "FAIL pre-scan no detecta symlink"
+    fail=1
+fi
+
 mkdir -p "$TMP/out"
 unzip -j -o "$TMP/evil.zip" "config.xml" -d "$TMP/out" >/dev/null 2>&1
 extracted="$TMP/out/config.xml"
