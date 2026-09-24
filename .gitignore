@@ -1,1 +1,30 @@
+# Secretos — NUNCA versionar
 .env
+
+# Logs de instalación y ejecución
+logs/
+*.log
+
+# Backups y temporales generados por scripts
+*.bak.*
+*.bak
+*.tmp
+*.swp
+*~
+
+# Parches y diffs locales
+*.patch
+
+# Ficheros de ofimática ajenos al proyecto
+*.docx
+*.xlsx
+*.pptx
+
+# Entornos virtuales Python
+venv/
+.venv/
+
+# IDE / editores
+.vscode/
+.idea/
+*.code-workspace
