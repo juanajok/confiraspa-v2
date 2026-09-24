@@ -48,9 +48,12 @@ readonly DIR_PERM="775"
 readonly FILE_PERM="664"
 
 # Rutas que NUNCA deben procesarse (FIX 20.3).
+# NOTA: /media y /mnt NO están aquí a propósito — son padres legítimos de los
+# discos del NAS (/media/WDElements, /mnt/...). La profundidad >= 2 ya protege
+# contra procesar /media o /mnt en sí.
 readonly BLACKLISTED_PATHS=(
     "" "/" "/root" "/home" "/bin" "/etc" "/usr" "/var"
-    "/media" "/mnt" "/opt" "/tmp" "/boot" "/dev" "/proc" "/sys" "/run"
+    "/opt" "/tmp" "/boot" "/dev" "/proc" "/sys" "/run"
 )
 
 # --- Validar que una ruta es segura para chown/chmod recursivo ---
@@ -59,7 +62,10 @@ readonly BLACKLISTED_PATHS=(
 is_safe_path() {
     local dir="${1%/}"
     local resolved
-    resolved="$(realpath -m "${dir}" 2>/dev/null)" || return 1
+    resolved="$(realpath -m "${dir}" 2>/dev/null)" || {
+        log_warning "No se pudo resolver la ruta (realpath): ${dir}. Se omite por seguridad."
+        return 1
+    }
     [[ -z "${resolved}" ]] && return 1
 
     local blacklisted

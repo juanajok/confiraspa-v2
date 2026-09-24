@@ -19,6 +19,7 @@ trap 'rm -rf "${TMP}"' EXIT
 fail=0
 
 # --- Extraer BLACKLISTED_PATHS + is_safe_path ---
+log_warning() { :; }   # stub: is_safe_path usa log_warning si realpath falla
 fn="$(awk '/^readonly BLACKLISTED_PATHS=/{f=1} f{print} /^}$/{if(f) exit}' "$SCRIPT")"
 eval "$fn"
 
