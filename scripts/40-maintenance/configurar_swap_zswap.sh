@@ -601,18 +601,27 @@ desactivar_dphys_swapfile() {
     fi
 }
 
+# Convierte un tamaño de swap ("4G"/"512M") a MB (entero) para check_disk_space.
+swap_size_a_mb() {
+    local size="${1:-4G}"
+    local num="${size%[gGmM]}"
+    local unit="${size: -1}"
+    case "$unit" in
+        g|G) echo $((num * 1024)) ;;
+        m|M) echo "$num" ;;
+        *)   echo 0 ;;
+    esac
+}
+
 crear_swapfile() {
     log_info "=== Paso 2: Crear swap file (${SWAP_SIZE}) ==="
 
-    if [[ -f "${SWAPFILE_PATH}" ]]; then
-        log_warning "Ya existe ${SWAPFILE_PATH}. Se eliminará y recreará."
-        local rc=0
-        # Justificación: swapoff falla si el archivo no está activo como swap.
-        execute_cmd "swapoff '${SWAPFILE_PATH}'" "Desactivando swapfile existente" || rc=$?
-        if [[ $rc -ne 0 ]]; then
-            log_warning "swapoff falló (exit ${rc}) — el archivo puede que no estuviera activo."
-        fi
-        execute_cmd "rm -f '${SWAPFILE_PATH}'" "Eliminando swapfile existente"
+    # FIX 6.3: crear el nuevo swapfile en una ruta temporal y formatearlo ANTES
+    # de borrar el antiguo. Si fallocate/dd falla a mitad (disco lleno de última
+    # hora), el swapfile viejo sigue intacto y recuperable (reboot/--rollback).
+    local tmp_swap="/swapfile.new"
+    if [[ -f "${tmp_swap}" ]]; then
+        execute_cmd "rm -f '${tmp_swap}'" "Eliminando temporal previo"
     fi
 
     local fs_type
@@ -620,8 +629,8 @@ crear_swapfile() {
 
     if [[ "$fs_type" == "ext4" ]]; then
         log_info "Usando fallocate (ext4 detectado)"
-        execute_cmd "fallocate -l '${SWAP_SIZE}' '${SWAPFILE_PATH}'" \
-            "Creando swapfile con fallocate"
+        execute_cmd "fallocate -l '${SWAP_SIZE}' '${tmp_swap}'" \
+            "Creando swapfile temporal con fallocate"
     else
         local size_num="${SWAP_SIZE%[gGmM]}"
         local size_unit="${SWAP_SIZE: -1}"
@@ -633,14 +642,22 @@ crear_swapfile() {
             *) log_error "Unidad no reconocida en --swap-size."; exit 1 ;;
         esac
         log_info "Usando dd (filesystem: ${fs_type}). count=${count} bloques de 1M"
-        execute_cmd "dd if=/dev/zero of='${SWAPFILE_PATH}' bs=1M count=${count} status=none" \
-            "Creando swapfile con dd (${SWAP_SIZE})"
+        execute_cmd "dd if=/dev/zero of='${tmp_swap}' bs=1M count=${count} status=none" \
+            "Creando swapfile temporal con dd (${SWAP_SIZE})"
     fi
 
     # SECURITY: 600 — solo root puede leer/escribir el swapfile.
     # Un swapfile legible por otros usuarios expondría memoria de procesos.
-    execute_cmd "chmod 600 '${SWAPFILE_PATH}'" "Protegiendo swapfile (permisos 600)"
-    execute_cmd "mkswap '${SWAPFILE_PATH}'" "Formateando swapfile"
+    execute_cmd "chmod 600 '${tmp_swap}'" "Protegiendo swapfile (permisos 600)"
+    execute_cmd "mkswap '${tmp_swap}'" "Formateando swapfile temporal"
+
+    # --- Sustitución: el antiguo solo se borra tras tener el nuevo listo ---
+    if [[ -f "${SWAPFILE_PATH}" ]]; then
+        # Ya está en swapoff (el Paso 1 hizo swapoff -a); solo queda borrar el fichero.
+        execute_cmd "rm -f '${SWAPFILE_PATH}'" "Eliminando swapfile antiguo"
+    fi
+    execute_cmd "mv '${tmp_swap}' '${SWAPFILE_PATH}'" "Instalando nuevo swapfile"
+
     execute_cmd "swapon '${SWAPFILE_PATH}'" "Activando swapfile"
 
     log_success "Swap file creado y activado: ${SWAPFILE_PATH} (${SWAP_SIZE})"
@@ -839,6 +856,7 @@ verificar_resultado() {
 main() {
     local temp_dir=""
     local backup_dir=""
+    local swap_mb=""
 
     trap 'rm -rf "${temp_dir:-}"' EXIT
     trap 'on_error "$?"' ERR
@@ -873,6 +891,24 @@ main() {
         backup_dir="${SWAP_BACKUP_BASE}/swap_zswap_$(date +%Y%m%d_%H%M%S)"
         execute_cmd "mkdir -p '${backup_dir}'" "Creando directorio de backup"
         hacer_backup "${backup_dir}"
+    fi
+
+    # FIX 6.3: comprobar espacio ANTES de desactivar el swap actual. Si el disco
+    # está lleno, abortamos aquí — nunca nos quedamos sin swap por un fallo de
+    # creación posterior (antes se hacía swapoff -a y luego fallaba fallocate/dd).
+    swap_mb="$(swap_size_a_mb "${SWAP_SIZE}")"
+    if [[ "${swap_mb}" -le 0 ]]; then
+        log_error "Tamaño de swap inválido: ${SWAP_SIZE}"
+        exit 1
+    fi
+    if ! check_disk_space "/" "${swap_mb}"; then
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            log_warning "[DRY-RUN] Espacio insuficiente en / (${swap_mb}MB); la ejecución real abortaría aquí."
+        else
+            log_error "Espacio insuficiente en / para un swap de ${SWAP_SIZE} (se necesitan ${swap_mb}MB libres)."
+            log_error "Abortando SIN desactivar el swap actual."
+            exit 1
+        fi
     fi
 
     # Implementación (todos los pasos respetan DRY_RUN vía execute_cmd)
