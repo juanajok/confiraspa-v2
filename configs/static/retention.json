@@ -2,32 +2,32 @@
   "policies": [
     {
       "name": "Radarr Backups",
-      "path": "/media/Backup/radarr/scheduled",
+      "path": "/media/Backup/radarr",
       "keep": 5
     },
     {
       "name": "Sonarr Backups",
-      "path": "/media/Backup/sonarr/scheduled",
+      "path": "/media/Backup/sonarr",
       "keep": 5
     },
     {
       "name": "Readarr Backups",
-      "path": "/media/Backup/readarr/scheduled",
+      "path": "/media/Backup/readarr",
       "keep": 5
     },
     {
       "name": "Lidarr Backups",
-      "path": "/media/Backup/lidarr/scheduled",
+      "path": "/media/Backup/lidarr",
       "keep": 5
     },
     {
       "name": "Prowlarr Backups",
-      "path": "/media/Backup/prowlarr/scheduled",
+      "path": "/media/Backup/prowlarr",
       "keep": 5
     },
     {
       "name": "Whisparr Backups",
-      "path": "/media/Backup/whisparr/scheduled",
+      "path": "/media/Backup/whisparr",
       "keep": 5
     }
   ]
