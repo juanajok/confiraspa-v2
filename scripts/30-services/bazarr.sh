@@ -27,8 +27,12 @@ readonly VENV_DIR="$INSTALL_DIR/venv"
 readonly TEMP_FILE="/tmp/bazarr.zip"
 
 # FIX 18.1: versión y SHA256 fijados (NO usar 'latest': mutable y no verificable).
-# El hash lo publica GitHub como 'digest' del asset bazarr.zip. Actualizar AMBOS
-# al subir de versión: https://github.com/morpheus65535/bazarr/releases
+# Procedencia: https://github.com/morpheus65535/bazarr/releases/tag/v1.6.1
+#   asset: bazarr.zip (Python, agnóstico de arquitectura)
+#   digest: campo 'digest' de la API de GitHub (sha256:9fb83af0…)
+#   comprobado: 2026-09-24
+# El SHA256 garantiza INTEGRIDAD, no autenticidad de la fuente; para endurecer,
+# verificar la firma/tag del release o mantener un manifiesto firmado externo.
 readonly BAZARR_VERSION="v1.6.1"
 readonly BAZARR_DOWNLOAD_URL="https://github.com/morpheus65535/bazarr/releases/download/${BAZARR_VERSION}/bazarr.zip"
 readonly BAZARR_SHA256="9fb83af026da7e9b7aa52d7547dfd15e7efa872ee90c7a5ecbe4bc6f213670e9"
@@ -44,6 +48,40 @@ cleanup() {
     fi
 }
 trap cleanup EXIT
+
+# FIX 4: validar que el ZIP no trae entradas peligrosas (rutas absolutas, '..',
+# symlinks) y que tiene la estructura esperada, antes de extraer.
+validate_bazarr_archive() {
+    local archive="$1"
+    local entry
+
+    # Entradas con ruta absoluta o con '..'
+    while IFS= read -r entry; do
+        [[ -z "$entry" ]] && continue
+        if [[ "$entry" == /* || "$entry" == *"../"* ]]; then
+            log_error "Entrada peligrosa en el ZIP: ${entry}"
+            return 1
+        fi
+    done < <(unzip -Z1 "$archive" 2>/dev/null)
+
+    # Symlinks: 'unzip -Zl' marca el modo con 'l'
+    if unzip -Zl "$archive" 2>/dev/null | grep -qE '^l'; then
+        log_error "El ZIP contiene entradas symlink."
+        return 1
+    fi
+
+    # Estructura esperada: bazarr.py y requirements.txt en la raíz
+    if ! unzip -Z1 "$archive" 2>/dev/null | grep -qx 'bazarr.py'; then
+        log_error "El ZIP no contiene bazarr.py en la raíz esperada."
+        return 1
+    fi
+    if ! unzip -Z1 "$archive" 2>/dev/null | grep -qx 'requirements.txt'; then
+        log_error "El ZIP no contiene requirements.txt en la raíz esperada."
+        return 1
+    fi
+
+    return 0
+}
 
 log_section "Instalación de Gestor de Subtítulos (Bazarr)"
 
@@ -80,38 +118,45 @@ if [ -f "$INSTALL_DIR/bazarr.py" ]; then
     log_info "Saltando descarga (Modo No-Upgrade)."
 else
     log_info "Iniciando instalación limpia..."
-    
-    # FIX 18.1: versión fijada + SHA256 (fallo cerrado). Antes: 'latest' mutable
-    # + curl sin verificar + pip install -r del zip = RCE en instalación.
+
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
-        log_warning "[DRY-RUN] Descargaría y verificaría Bazarr ${BAZARR_VERSION} (SHA256)."
+        log_warning "[DRY-RUN] Descargaría y verificaría Bazarr ${BAZARR_VERSION} (SHA256) y lo extraería en ${INSTALL_DIR}."
     else
+        # FIX 18.1: versión fijada + SHA256 (fallo cerrado). Antes: 'latest' mutable
+        # + curl sin verificar + pip install -r del zip = RCE en instalación.
         log_info "Descargando Bazarr ${BAZARR_VERSION} (verificando SHA256)..."
         if ! download_secure "${BAZARR_DOWNLOAD_URL}" "${TEMP_FILE}" "${BAZARR_SHA256}"; then
             log_error "Descarga o verificación SHA256 fallida. Abortando SIN ejecutar pip."
             exit 1
         fi
-    fi
-    
-    # Limpieza de directorio previo
-    if [ -d "$INSTALL_DIR" ]; then rm -rf "$INSTALL_DIR"; fi
-    mkdir -p "$INSTALL_DIR"
-    
-    log_info "Extrayendo..."
-    execute_cmd "unzip -q -o $TEMP_FILE -d $INSTALL_DIR" "Extrayendo archivos de Bazarr"
 
-    # --- CORRECCIÓN AQUÍ ---
-    # Solo validamos la existencia si NO estamos en modo Dry-Run
-    if [[ "${DRY_RUN:-false}" == "false" ]]; then
+        # FIX 4: validar entradas y estructura del ZIP antes de extraer.
+        validate_bazarr_archive "${TEMP_FILE}" || exit 1
+
+        # FIX 4 (resiliencia): renombrar la instalación previa (rollback) en vez de rm -rf.
+        if [ -d "$INSTALL_DIR" ]; then
+            execute_cmd "mv '${INSTALL_DIR}' '${INSTALL_DIR}.bak.$(date +%Y%m%d_%H%M%S)'" \
+                "Respaldando instalación previa de Bazarr"
+        fi
+        execute_cmd "mkdir -p '${INSTALL_DIR}'" "Creando directorio de instalación"
+
+        log_info "Extrayendo..."
+        execute_cmd "unzip -q -o -- '${TEMP_FILE}' -d '${INSTALL_DIR}'" "Extrayendo archivos de Bazarr"
+
         if [ ! -f "$INSTALL_DIR/bazarr.py" ]; then
             log_error "Error crítico: bazarr.py no encontrado tras la extracción."
             log_error "Es posible que la estructura del zip oficial haya cambiado."
             exit 1
         fi
         log_success "Validación de binarios completada."
-    else
-        log_warning "[DRY-RUN] Saltando validación de archivos (el archivo aún no existe)."
     fi
+fi
+
+# FIX 4 (dry-run): el resto del flujo (venv, pip, permisos, systemd) depende del
+# ZIP descargado y extraído; en simulación no hay artefactos que procesar.
+if [[ "${DRY_RUN:-false}" == "true" ]]; then
+    log_success "[DRY-RUN] Simulación completada: no se descargó ni instaló nada."
+    exit 0
 fi
 
 # 4. Configuración del Entorno Virtual (VENV)
