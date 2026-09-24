@@ -46,7 +46,8 @@ fi
 # ===========================================================================
 # CONSTANTES
 # ===========================================================================
-readonly SWAPFILE_PATH="/swapfile"
+# Sobreescribible vía entorno (patrón ${VAR:-default}) para permitir tests sin root.
+SWAPFILE_PATH="${SWAPFILE_PATH:-/swapfile}"
 readonly SYSCTL_CONF="/etc/sysctl.d/99-swap-optimization.conf"
 readonly FSTAB_PATH="/etc/fstab"
 readonly SWAP_BACKUP_BASE="/var/log/confiraspa/backups"
@@ -590,15 +591,8 @@ desactivar_dphys_swapfile() {
         log_info "dphys-swapfile no está instalado. Nada que hacer."
     fi
 
-    if swapon --show --noheadings | grep -q .; then
-        local rc=0
-        # Justificación: swapoff -a puede fallar si algún proceso tiene memoria
-        # mapeada en swap — en ese caso el nuevo swap se añadirá sobre el existente.
-        execute_cmd "swapoff -a" "Desactivando todo swap existente" || rc=$?
-        if [[ $rc -ne 0 ]]; then
-            log_warning "swapoff -a falló (exit ${rc}) — puede que no hubiera swap activo."
-        fi
-    fi
+    # FIX 6.3 (v2): ya NO se hace swapoff -a aquí. El swapoff se hace por ruta en
+    # crear_swapfile justo antes del rename, minimizando la ventana sin swap.
 }
 
 # Convierte un tamaño de swap ("4G"/"512M") a MB (entero) para check_disk_space.
@@ -607,8 +601,8 @@ swap_size_a_mb() {
     local num="${size%[gGmM]}"
     local unit="${size: -1}"
     case "$unit" in
-        g|G) echo $((num * 1024)) ;;
-        m|M) echo "$num" ;;
+        g|G) echo $((10#$num * 1024)) ;;
+        m|M) echo $((10#$num)) ;;
         *)   echo 0 ;;
     esac
 }
@@ -636,8 +630,8 @@ crear_swapfile() {
         local size_unit="${SWAP_SIZE: -1}"
         local count=0
         case "$size_unit" in
-            g|G) count=$((size_num * 1024)) ;;
-            m|M) count=$size_num ;;
+            g|G) count=$((10#$size_num * 1024)) ;;
+            m|M) count=$((10#$size_num)) ;;
             # No debería llegar aquí gracias a la validación en parse_args
             *) log_error "Unidad no reconocida en --swap-size."; exit 1 ;;
         esac
@@ -651,13 +645,18 @@ crear_swapfile() {
     execute_cmd "chmod 600 '${tmp_swap}'" "Protegiendo swapfile (permisos 600)"
     execute_cmd "mkswap '${tmp_swap}'" "Formateando swapfile temporal"
 
-    # --- Sustitución: el antiguo solo se borra tras tener el nuevo listo ---
+    # --- Sustitución atómica (rename(2)): swapoff dirigido, mv reemplaza, swapon ---
+    # FIX 6.3 (v2): swapoff por ruta (no el swapoff -a genérico del Paso 1), de modo
+    # que el swap solo se desactiva justo antes del rename. La ventana sin swap queda
+    # limitada al instante swapoff→swapon, no a toda la creación del fichero.
     if [[ -f "${SWAPFILE_PATH}" ]]; then
-        # Ya está en swapoff (el Paso 1 hizo swapoff -a); solo queda borrar el fichero.
-        execute_cmd "rm -f '${SWAPFILE_PATH}'" "Eliminando swapfile antiguo"
+        local rc=0
+        execute_cmd "swapoff '${SWAPFILE_PATH}'" "Desactivando swapfile antiguo" || rc=$?
+        if [[ $rc -ne 0 ]]; then
+            log_warning "swapoff falló (exit ${rc}) — el archivo puede que no estuviera activo."
+        fi
     fi
-    execute_cmd "mv '${tmp_swap}' '${SWAPFILE_PATH}'" "Instalando nuevo swapfile"
-
+    execute_cmd "mv '${tmp_swap}' '${SWAPFILE_PATH}'" "Instalando nuevo swapfile (rename atómico)"
     execute_cmd "swapon '${SWAPFILE_PATH}'" "Activando swapfile"
 
     log_success "Swap file creado y activado: ${SWAPFILE_PATH} (${SWAP_SIZE})"
@@ -707,6 +706,9 @@ configurar_zswap_cmdline() {
 
     execute_cmd "cp '${candidate}' '${CMDLINE_PATH}'" \
         "Actualizando cmdline.txt (ZSWAP: compressor=${ZSWAP_COMPRESSOR}, zpool=${ZSWAP_ZPOOL})"
+    # /boot/firmware es vfat: sync fuerza el flush y evita un cmdline corrupto
+    # o incompleto si hay un corte de luz inmediato tras el cp.
+    execute_cmd "sync" "Sincronizando cambios en /boot/firmware"
 }
 
 configurar_initramfs() {
