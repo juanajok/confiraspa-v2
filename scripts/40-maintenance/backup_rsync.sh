@@ -11,6 +11,12 @@
 #
 # Diseñado para ejecutarse desde cron (diariamente a las 04:00) con prioridad
 # baja para no degradar los servicios multimedia en la RPi.
+#
+# CÓDIGOS DE SALIDA (FIX 17.1 — para que cron/healthchecks no reciban un falso OK):
+#   0 = todos los jobs completados.
+#   1 = al menos un job falló (rsync/mkdir devolvieron error).
+#   2 = solo saltos por protección activa (origen ausente/vacío, destino en rootfs,
+#       o disco lleno). El backup NO está completo → tratar como WARNING alertable.
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -125,7 +131,23 @@ is_source_safe() {
     return 0
 }
 
+# --- Validar que el JSON de configuración es sintácticamente válido ---
+# FIX 17.1: con JSON corrupto, 'jq -r' falla dentro de la process substitution
+# y mapfile recibe vacío → el script salía 0 con "No hay trabajos" (backup que
+# mentía). Esta validación falla cerrado antes de leer los jobs.
+validate_config_json() {
+    local file="${1:-${CONFIG_FILE}}"
+    if ! jq empty "${file}" 2>/dev/null; then
+        log_error "El archivo de configuración no es JSON válido: ${file}"
+        return 1
+    fi
+    return 0
+}
+
 # --- Ejecutar un job de rsync ---
+# Return codes: 0 = éxito, 1 = fallo real, 2 = saltado (protección activa).
+# FIX 17.1: antes la función siempre devolvía 0 (el último comando era log_error),
+# por lo que un rsync fallido se contaba como "completado" y fail_count nunca crecía.
 run_backup_job() {
     local name="$1"
     local src="$2"
@@ -138,7 +160,7 @@ run_backup_job() {
 
     # Safety check: origen existe y no está vacío
     if ! is_source_safe "${src}"; then
-        return 0  # Continuamos con el siguiente job sin abortar el script
+        return 2  # SKIP: origen ausente/vacío (posible disco desmontado)
     fi
 
     # RISK: Si el disco de destino no está montado (nofail en fstab), mkdir -p crea
@@ -162,7 +184,7 @@ run_backup_job() {
     if [[ "${mount_target}" == "/" ]]; then
         log_error "El destino '${dest}' no está en un disco montado (resuelve a la raíz '/')."
         log_error "Posible disco de backup desconectado. Saltando job '${name}' para proteger el sistema de ficheros raíz."
-        return 0
+        return 2  # SKIP: destino fuera de un mountpoint real
     fi
 
     # FIX: run_backup_job se invoca dentro de un 'if' en main() (patrón
@@ -171,13 +193,16 @@ run_backup_job() {
     # no detiene la ejecución y rsync corre igualmente contra un disco lleno.
     if ! check_disk_space "${dest_check}" 1024; then
         log_error "Saltando job '${name}' por falta de espacio en '${dest_check}'."
-        return 0
+        return 2  # SKIP: espacio insuficiente
     fi
 
     # Crear destino si no existe
     if [[ ! -d "${dest}" ]]; then
-        execute_cmd "mkdir -p '${dest}'" \
-            "Creando directorio destino: ${dest}"
+        if ! execute_cmd "mkdir -p '${dest}'" \
+            "Creando directorio destino: ${dest}"; then
+            log_error "No se pudo crear el directorio destino: ${dest}"
+            return 1  # FAIL
+        fi
     fi
 
     # Construir flags de exclusión a partir de patrones separados por '|'
@@ -197,8 +222,10 @@ run_backup_job() {
     log_info "Sincronizando..."
     if execute_cmd "${rsync_cmd}" "Rsync: ${name}"; then
         log_success "Backup '${name}' completado."
+        return 0  # OK
     else
         log_error "Fallo en backup '${name}'. Verifica permisos o espacio en disco."
+        return 1  # FAIL
     fi
 }
 
@@ -220,6 +247,9 @@ main() {
         log_error "No se encuentra el archivo de definición de backups: ${CONFIG_FILE}"
         exit 1
     fi
+
+    # FIX 17.1: validar el JSON ANTES de leerlo (fallo cerrado ante JSON corrupto).
+    validate_config_json "${CONFIG_FILE}" || exit 1
 
     # --- 2. Lock y prioridad baja ---
     acquire_lock
@@ -245,9 +275,10 @@ main() {
     fi
 
     # --- 4. Procesar cada job ---
-    local i name src dest exclude_raw
+    local i name src dest exclude_raw rc
     local job_count=0
     local fail_count=0
+    local skip_count=0
 
     for (( i=0; i<total_fields; i+=4 )); do
         name="${all_fields[i]:-}"
@@ -261,19 +292,35 @@ main() {
             continue
         fi
 
+        rc=0
         if run_backup_job "${name}" "${src}" "${dest}" "${exclude_raw}"; then
             (( job_count++ )) || true  # (( )) retorna 1 cuando resultado es 0
         else
-            (( fail_count++ )) || true  # Idem
+            rc=$?
+            case "${rc}" in
+                2) (( skip_count++ )) || true ;;  # Saltado por protección activa
+                *) (( fail_count++ )) || true ;;  # Fallo real
+            esac
         fi
     done
 
-    # --- 5. Resumen ---
+    # --- 5. Resumen (salida tripartita) ---
+    # FIX 17.1: un job saltado por protección NO es un backup hecho. Salimos 2
+    # para que el wrapper de cron/healthchecks lo trate como WARNING alertable,
+    # en lugar de reportar verde mientras un disco lleva semanas desmontado.
+    if [[ "${fail_count}" -gt 0 ]]; then
+        log_error "Copias de seguridad finalizadas con ${fail_count} fallo(s) — ${job_count} OK, ${skip_count} saltado(s)."
+        exit 1
+    fi
+
+    if [[ "${skip_count}" -gt 0 ]]; then
+        log_error "Copias de seguridad: ${job_count} OK, ${skip_count} job(s) SALTADO(S) por protección (¿disco desmontado o lleno?)."
+        log_info "  El backup NO está completo. Revisa origen/destino/espacio."
+        exit 2
+    fi
+
     log_success "Proceso de copias de seguridad finalizado."
     log_info "  Jobs completados: ${job_count}"
-    if [[ "${fail_count}" -gt 0 ]]; then
-        log_warning "  Jobs con fallos: ${fail_count}"
-    fi
 }
 
 main "$@"
