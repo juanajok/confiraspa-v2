@@ -183,6 +183,13 @@ restore_from_zip() {
     extract_tmp=$(mktemp -d)
     trap 'rm -rf "${extract_tmp}"' RETURN
 
+    # SECURITY (4.2, defensa en profundidad): escanear el ZIP ANTES de extraer
+    # nada. En 'unzip -Zl' las entradas symlink tienen el modo 'l' (lrwxrwxrwx).
+    if unzip -Zl "${latest_backup}" 2>/dev/null | grep -qE '^l'; then
+        log_error "El ZIP '${latest_backup}' contiene entradas symlink. Abortando por seguridad."
+        return 1
+    fi
+
     local file
     while IFS= read -r file; do
         [[ -z "${file}" ]] && continue
@@ -270,8 +277,11 @@ restore_loose_files() {
             create_backup "${dest}"
         fi
 
-        execute_cmd "cp -a '${src}' '${dest}'" \
-            "Copiando: ${file}"
+        if ! execute_cmd "cp -a '${src}' '${dest}'" \
+            "Copiando: ${file}"; then
+            log_error "  -> Fallo al copiar '${file}'."
+            return 1
+        fi
     done <<< "${files_json}"
 }
 
@@ -406,29 +416,36 @@ process_app() {
         fi
     fi
 
-    # C-F. Restauración en un bloque con manejo explícito de error: un fallo
-    # intermedio NO aborta process_app; se rearranca el servicio y se propaga rc≠0.
+    # C-F. Restauración con manejo EXPLÍCITO de error (FIX 6.1): cada paso
+    # propaga su rc sin depender de set -e (que queda desactivado al llamar a
+    # process_app desde 'if ! process_app' en main). Fail-fast: si un paso
+    # falla, los posteriores se saltan, pero el servicio se rearranca igual.
     local restore_rc=0
-    (
-        # C. Crear directorio destino si no existe
-        if [[ ! -d "${restore_dir}" ]]; then
-            execute_cmd "install -d -o '${APP_USER}' -g '${APP_GROUP}' -m 755 '${restore_dir}'" \
-                "Creando directorio destino: ${restore_dir}"
-        fi
 
-        # D. Restaurar ficheros según el tipo de backup
+    # C. Crear directorio destino si no existe
+    if [[ ! -d "${restore_dir}" ]]; then
+        execute_cmd "install -d -o '${APP_USER}' -g '${APP_GROUP}' -m 755 '${restore_dir}'" \
+            "Creando directorio destino: ${restore_dir}" || restore_rc=1
+    fi
+
+    # D. Restaurar ficheros según el tipo de backup
+    if [[ "${restore_rc}" -eq 0 ]]; then
         if [[ "${backup_ext}" == ".zip" ]]; then
-            restore_from_zip "${app_key}" "${backup_dir}" "${backup_ext}" "${restore_dir}"
+            restore_from_zip "${app_key}" "${backup_dir}" "${backup_ext}" "${restore_dir}" || restore_rc=1
         else
-            restore_loose_files "${app_key}" "${backup_dir}" "${restore_dir}"
+            restore_loose_files "${app_key}" "${backup_dir}" "${restore_dir}" || restore_rc=1
         fi
+    fi
 
-        # E. Aplicar permisos específicos
-        apply_file_permissions "${app_key}" "${restore_dir}" "${APP_USER}" "${APP_GROUP}"
+    # E. Aplicar permisos específicos
+    if [[ "${restore_rc}" -eq 0 ]]; then
+        apply_file_permissions "${app_key}" "${restore_dir}" "${APP_USER}" "${APP_GROUP}" || restore_rc=1
+    fi
 
-        # F. Corregir BindAddress si el backup venía con loopback
-        fix_bind_address "${restore_dir}"
-    ) || restore_rc=$?
+    # F. Corregir BindAddress si el backup venía con loopback
+    if [[ "${restore_rc}" -eq 0 ]]; then
+        fix_bind_address "${restore_dir}" || restore_rc=1
+    fi
 
     # G. Reiniciar el servicio SIEMPRE que lo hubiéramos detenido.
     if [[ "${service_stopped}" == true && -n "${APP_SERVICE}" ]]; then
@@ -437,7 +454,7 @@ process_app() {
     fi
 
     if [[ "${restore_rc}" -ne 0 ]]; then
-        log_error "La restauración de '${app_key}' falló a mitad (rc=${restore_rc}); el servicio ha sido rearrancado."
+        log_error "La restauración de '${app_key}' falló (rc=${restore_rc}); el servicio ha sido rearrancado."
         return 1
     fi
 }
@@ -471,10 +488,19 @@ main() {
     app_keys=$(jq -r 'keys[]' "${CONFIG_FILE}")
 
     local app_key
+    local global_rc=0
     while IFS= read -r app_key; do
         [[ -z "${app_key}" ]] && continue
-        process_app "${app_key}"
+        if ! process_app "${app_key}"; then
+            global_rc=1
+        fi
     done <<< "${app_keys}"
+
+    # FIX 6.1: propagar el fallo global (el servicio ya se rearrancó en process_app).
+    if [[ "${global_rc}" -ne 0 ]]; then
+        log_error "Una o más apps fallaron durante la restauración."
+        exit 1
+    fi
 
     log_success "Restauración completada."
 }
