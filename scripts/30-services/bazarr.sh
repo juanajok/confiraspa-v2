@@ -26,6 +26,13 @@ readonly DATA_DIR="/var/lib/bazarr"
 readonly VENV_DIR="$INSTALL_DIR/venv"
 readonly TEMP_FILE="/tmp/bazarr.zip"
 
+# FIX 18.1: versión y SHA256 fijados (NO usar 'latest': mutable y no verificable).
+# El hash lo publica GitHub como 'digest' del asset bazarr.zip. Actualizar AMBOS
+# al subir de versión: https://github.com/morpheus65535/bazarr/releases
+readonly BAZARR_VERSION="v1.6.1"
+readonly BAZARR_DOWNLOAD_URL="https://github.com/morpheus65535/bazarr/releases/download/${BAZARR_VERSION}/bazarr.zip"
+readonly BAZARR_SHA256="9fb83af026da7e9b7aa52d7547dfd15e7efa872ee90c7a5ecbe4bc6f213670e9"
+
 # Usuario del stack Arr
 readonly USER_NAME="${ARR_USER:-media}"
 readonly GROUP_NAME="${ARR_GROUP:-media}"
@@ -74,11 +81,17 @@ if [ -f "$INSTALL_DIR/bazarr.py" ]; then
 else
     log_info "Iniciando instalación limpia..."
     
-    # URL de GitHub Releases (Siempre latest)
-    DL_URL="https://github.com/morpheus65535/bazarr/releases/latest/download/bazarr.zip"
-    
-    log_info "Descargando código fuente..."
-    execute_cmd "curl -sL -o $TEMP_FILE '$DL_URL'" "Descarga completada"
+    # FIX 18.1: versión fijada + SHA256 (fallo cerrado). Antes: 'latest' mutable
+    # + curl sin verificar + pip install -r del zip = RCE en instalación.
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log_warning "[DRY-RUN] Descargaría y verificaría Bazarr ${BAZARR_VERSION} (SHA256)."
+    else
+        log_info "Descargando Bazarr ${BAZARR_VERSION} (verificando SHA256)..."
+        if ! download_secure "${BAZARR_DOWNLOAD_URL}" "${TEMP_FILE}" "${BAZARR_SHA256}"; then
+            log_error "Descarga o verificación SHA256 fallida. Abortando SIN ejecutar pip."
+            exit 1
+        fi
+    fi
     
     # Limpieza de directorio previo
     if [ -d "$INSTALL_DIR" ]; then rm -rf "$INSTALL_DIR"; fi
@@ -116,7 +129,10 @@ PYTHON_CMD="$VENV_DIR/bin/python"
 log_info "Instalando dependencias Python (requirements.txt)..."
 # Actualizar pip interno
 execute_cmd "$PIP_CMD install --upgrade pip --quiet"
-# Instalar requerimientos
+# Instalar requerimientos.
+# SECURITY: requirements.txt proviene del ZIP verificado por SHA256 (trusted).
+# Riesgo residual: los paquetes se bajan de PyPI sin pinning por hash — mitigarlo
+# requeriría mantener un requirements.txt propio con --require-hashes.
 execute_cmd "$PIP_CMD install -r $INSTALL_DIR/requirements.txt --quiet"
 
 # 5. Permisos y Datos
