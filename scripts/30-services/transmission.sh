@@ -53,6 +53,16 @@ fi
 # Defaults seguros para variables no críticas
 TRANSMISSION_USER="${TRANSMISSION_USER:-admin}"
 TRANSMISSION_PEER_PORT="${TRANSMISSION_PEER_PORT:-51413}"
+TRANSMISSION_WEB_PORT="${TRANSMISSION_WEB_PORT:-9091}"
+
+# Validar que los puertos son numéricos — la plantilla los renderiza como
+# números JSON (sin comillas); un valor no numérico rompería el settings.json.
+for _p in TRANSMISSION_PEER_PORT TRANSMISSION_WEB_PORT; do
+    if [[ ! "${!_p}" =~ ^[0-9]+$ ]]; then
+        log_error "Puerto inválido: ${_p}='${!_p}' (debe ser numérico)."
+        exit 1
+    fi
+done
 
 # DIR_TORRENTS y DIR_TORRENTS_TEMP vienen de .env (via PATH_DOWNLOADS).
 # Los fallbacks apuntan a la ruta correcta actual — solo como red de seguridad.
@@ -60,7 +70,7 @@ export DIR_TORRENTS="${DIR_TORRENTS:-/media/Descargas/torrents/completos}"
 export DIR_INCOMPLETE="${DIR_TORRENTS_TEMP:-/media/Descargas/torrents/temp}"
 
 # Exportamos explícitamente las variables que usará la plantilla
-export TRANSMISSION_USER TRANSMISSION_PASS TRANSMISSION_PEER_PORT
+export TRANSMISSION_USER TRANSMISSION_PASS TRANSMISSION_PEER_PORT TRANSMISSION_WEB_PORT
 
 # 3. Parada del Servicio (CRÍTICO)
 # Transmission sobrescribe settings.json al cerrarse. 
@@ -105,18 +115,36 @@ fi
 
 log_info "Generando settings.json desde plantilla..."
 
-# Usamos envsubst CON WHITELIST de variables para evitar corromper otros $ del JSON
-envsubst '${DIR_TORRENTS} ${DIR_INCOMPLETE} ${TRANSMISSION_USER} ${TRANSMISSION_PASS} ${TRANSMISSION_PEER_PORT}' \
-    < "$TEMPLATE_FILE" | execute_cmd "tee $TARGET_CONF" > /dev/null
+# SECURITY: NO usar 'tee' vía execute_cmd — el tee vuelca el settings.json
+# renderizado (con rpc-password en claro) al LOG_FILE de la sesión. Generamos
+# en un fichero temporal (mktemp crea con 0600) y lo instalamos atómicamente.
+TMP_CONF="$(mktemp)"
+trap 'rm -f "${TMP_CONF:-}"' EXIT
+
+envsubst '${DIR_TORRENTS} ${DIR_INCOMPLETE} ${TRANSMISSION_USER} ${TRANSMISSION_PASS} ${TRANSMISSION_PEER_PORT} ${TRANSMISSION_WEB_PORT}' \
+    < "$TEMPLATE_FILE" > "$TMP_CONF"
+
+# Validar el CANDIDATO antes de tocar el target (fail closed). 'jq empty' lee el
+# fichero por argumento y no vuelca contenido al log (la fuga 1.3 sigue cerrada).
+if ! jq empty "$TMP_CONF" 2>/dev/null; then
+    log_error "El render de la plantilla es JSON inválido. No se modifica ${TARGET_CONF}."
+    exit 1
+fi
 
 # SECURITY: El fichero contiene rpc-password en claro; solo el daemon debe leerlo.
-execute_cmd "chmod 600 $TARGET_CONF" "Restringiendo permisos de settings.json"
+# IMPORTANTE: install crea el fichero de nuevo, así que fijamos el dueño al usuario
+# del daemon (debian-transmission) — el 'tee' anterior conservaba la propiedad del
+# paquete, y un settings.json root:root 0600 impediría al daemon leerlo y reescribirlo.
+execute_cmd "install -m 600 -o '${TM_USER}' -g '${TM_USER}' '$TMP_CONF' '$TARGET_CONF'" \
+    "Instalando settings.json (0600, ${TM_USER})"
 
-# Validación de integridad JSON — 'jq empty' valida sin volcar el contenido al log
-# SECURITY: 'jq .' vuelca settings.json completo (con rpc-password) al log de sesión
+# Red secundaria: validar el target ya instalado (no debería fallar tras el check previo)
 if ! run_check "jq empty $TARGET_CONF" "Validando integridad del JSON de Transmission"; then
-    log_error "El JSON generado es inválido. Restaurando backup..."
-    if [[ -n "${BACKUP_FILE:-}" && -f "$BACKUP_FILE" ]]; then cp "$BACKUP_FILE" "$TARGET_CONF"; fi
+    log_error "El JSON instalado es inválido. Restaurando backup..."
+    if [[ -n "${BACKUP_FILE:-}" && -f "$BACKUP_FILE" ]]; then
+        execute_cmd "install -m 600 -o '${TM_USER}' -g '${TM_USER}' '${BACKUP_FILE}' '${TARGET_CONF}'" \
+            "Restaurando settings.json desde backup"
+    fi
     exit 1
 fi
 
@@ -132,7 +160,7 @@ if check_service_active "$SERVICE"; then
     
     log_success "Transmission operativo."
     log_info "---------------------------------------------------"
-    log_info "URL:        http://$CURRENT_IP:$TRANSMISSION_PEER_PORT"
+    log_info "URL:        http://$CURRENT_IP:$TRANSMISSION_WEB_PORT"
     log_info "Usuario:    $TRANSMISSION_USER"
     log_info "Contraseña: (Definida en .env)"
     log_info "Descargas:  $DIR_TORRENTS"
