@@ -1,0 +1,14 @@
+title = "Configuración Gitleaks de Confiraspa"
+
+# Extiende las reglas por defecto de gitleaks
+[extend]
+  useDefault = true
+
+# Falsos positivos: plantillas con placeholders y tests con valores de ejemplo
+# (no son secretos reales).
+[allowlist]
+  description = "Plantillas y tests con valores de ejemplo"
+  paths = [
+    '''\.env\.example$''',
+    '''tests/''',
+  ]
