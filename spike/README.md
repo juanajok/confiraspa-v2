@@ -1,26 +1,30 @@
-# Spike del executor — Confiraspa MVP
+# Spike del executor — Confiraspa MVP (v2, endurecido)
 
 Prueba de concepto del modelo de privilegios del MVP (`DESIGN_MVP.md`):
 **web sin root → socket Unix → executor privilegiado con allowlist**.
 
-## Qué demuestra
+## Qué demuestra (v2)
 
-- Una petición web **no puede** convertirse en ejecución fuera de la allowlist
-  (operaciones con esquema estricto de parámetros; sin comandos/rutas/args libres).
-- Jobs **persistentes** (SQLite) con estados `pending → running → success|failed`,
-  límite de concurrencia (1 operación a la vez) y marcado de `running` obsoleto
-  tras reinicio.
-- Salida **redactada** (secretos) y **truncada** (límite de tamaño); códigos de
-  salida conservados.
+- **Allowlist estricta + argumentos de lista** (sin shell, sin interpolar texto
+  del usuario): app_id desconocido, operación desconocida, parámetros extra y
+  tipos incorrectos se rechazan.
+- **Límites antes de capturar**: body HTTP (64 KB), petición por socket
+  (256 KB + timeout de conexión), salida del subprocess acotada desde el origen
+  (drenada en hilo, máximo 64 KB) y timeout de ejecución por operación.
+- **Secretos no persistidos**: `jobs.summarize()` solo guarda campos públicos de
+  cada operación; la redacción de la salida es una *segunda* defensa.
+- **Semántica de recuperación**: excepción durante la operación → `failed`;
+  `running` interrumpido y `pending` huérfano → `failed` al arrancar.
+- **Concurrencia**: máximo 1 operación a la vez.
 
 ## Estructura
 
 | Fichero | Rol |
 |---|---|
-| `jobs.py` | Store de jobs (SQLite), compartido por API y executor |
-| `executor.py` | Servidor socket Unix + allowlist + ejecución (privilegiado) |
-| `api.py` | API HTTP mínima (sin root) que habla con el executor |
-| `test_spike.sh` | 10 pruebas negativas |
+| `jobs.py` | Store de jobs (SQLite) + `summarize()` + recuperación de obsoletos |
+| `executor.py` | Socket Unix + allowlist + ejecución acotada (privilegiado) |
+| `api.py` | API HTTP mínima (sin root) + límite de body |
+| `test_spike.sh` | 15 pruebas (negativas + límites + recuperación) |
 
 ## Ejecutar
 
@@ -29,17 +33,26 @@ cd spike
 bash test_spike.sh
 ```
 
-Los tests arrancan executor y API en segundo plano y cubren: permisos del socket,
-app_id desconocido, instalación del catálogo, redacción, truncado, parámetros
-extra, tipo incorrecto, operación desconocida, límite de concurrencia y
-persistencia tras reinicio.
+## Límites del spike (no lo confundir con un executor de producción)
 
-## Nota de spike
+1. **No hay separación real de usuarios.** API y executor corren como el mismo
+   usuario en el test; `0660` es el mecanismo, pero falta una prueba con dos
+   identidades reales (web vs. usuario ajeno) y un intento desde una tercera —
+   en la RPi o en CI.
+2. **El socket y la SQLite siguen en `/tmp` por comodidad.** En producción el
+   directorio (`/run/confiraspa/`) lo crea systemd (`RuntimeDirectory=`) con
+   propietario/permisos definidos; el executor ya **no** borra rutas arbitrarias
+   (solo un socket obsoleto propio).
+3. **`app.install` es un stub.** No llama a `install.sh` todavía; la línea de
+   producción es `subprocess.run([SCRIPT, "--only", app_id], ...)` con ruta fija
+   y entorno controlado. Falta validarlo contra el script real en un entorno
+   recuperable.
+4. **Sin autenticación/sesión/CSRF.** Esto se añade *después* de validar la
+   frontera de privilegios, no antes.
 
-- `app.install` mapea a un **stub** (`echo` + `sleep`). En producción, la línea
-  marcada con `STUB` pasa a ser `["bash", "install.sh", "--only", app]`.
-- El catálogo es `CATALOG = {"plex"}` (un único ID), como pide el alcance del spike.
-- Se usa stdlib de Python (sin FastAPI/uvicorn) para no añadir dependencias al
-  spike; la implementación real usará FastAPI según el diseño.
-- El socket se deja `0660`; en producción el grupo será `confiraspa` y la web
-  pertenecerá a ese grupo.
+## Próximos pasos (orden)
+
+1. Endurecer límites/rutas/secretos/transiciones (hecho en v2).
+2. Probar la frontera real (usuario web vs. ajeno vs. executor root) en la RPi.
+3. Sustituir el stub por `install.sh --only plex` en un entorno recuperable.
+4. Implementar autenticación, sesión y CSRF.

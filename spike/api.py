@@ -5,7 +5,8 @@ Endpoints del spike:
   GET  /api/v1/apps                       → catálogo
   POST /api/v1/apps/{id}/install          → crea job y lo envía al executor
   POST /api/v1/echo                       → operación de prueba (body JSON = params)
-  GET  /api/v1/jobs/{id}                  → estado del job
+  POST /api/v1/fail, /api/v1/slow         → ops de prueba (fallo / timeout)
+  GET  /api/v1/jobs/{id}                  → estado del job (params resumidos, sin secretos)
 """
 import json
 import os
@@ -16,12 +17,14 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import jobs
 
-EXECUTOR_SOCKET = os.environ.get("CONFIRASPA_EXECUTOR_SOCKET", "/tmp/confiraspa-executor.sock")
+EXECUTOR_SOCKET = os.environ.get("CONFIRASPA_EXECUTOR_SOCKET", "/run/confiraspa/executor.sock")
+MAX_BODY = 64 * 1024  # límite de body HTTP
 CATALOG = {"plex"}
 
 
 def send_to_executor(job_id, operation, params):
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(60)
     s.connect(EXECUTOR_SOCKET)
     s.sendall((json.dumps({"job_id": job_id, "operation": operation, "params": params}) + "\n").encode())
     data = b""
@@ -35,7 +38,6 @@ def send_to_executor(job_id, operation, params):
 
 
 def dispatch(job_id, operation, params):
-    """Envía al executor en un hilo; la petición HTTP no espera el resultado."""
     def _go():
         try:
             send_to_executor(job_id, operation, params)
@@ -55,6 +57,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _read_body(self):
         n = int(self.headers.get("Content-Length", 0) or 0)
+        if n > MAX_BODY:
+            return None  # demasiado grande
         if n == 0:
             return {}
         try:
@@ -74,28 +78,32 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parts = self.path.split("/")
-        # POST /api/v1/apps/{id}/install  →  ["","api","v1","apps",id,"install"]
+        # POST /api/v1/apps/{id}/install
         if len(parts) == 6 and parts[1:4] == ["api", "v1", "apps"] and parts[5] == "install":
             app_id = parts[4]
             if app_id not in CATALOG:
                 return self._send({"error": f"app desconocida: {app_id}"}, 404)
-            job_id = "j_" + uuid.uuid4().hex[:12]
-            jobs.create_job(job_id, "app.install", {"app_id": app_id})
-            dispatch(job_id, "app.install", {"app_id": app_id})
-            return self._send({"job_id": job_id}, 202)
+            params = {"app_id": app_id}
+            return self._start_job("app.install", params)
 
-        # POST /api/v1/echo  → operación de prueba (body JSON = params)
-        if self.path == "/api/v1/echo":
+        # POST /api/v1/{op} para echo/fail/slow
+        op = parts[-1]
+        if self.path in ("/api/v1/echo", "/api/v1/fail", "/api/v1/slow", "/api/v1/spew"):
             params = self._read_body()
-            job_id = "j_" + uuid.uuid4().hex[:12]
-            jobs.create_job(job_id, "echo", params)
-            dispatch(job_id, "echo", params)
-            return self._send({"job_id": job_id}, 202)
+            if params is None:
+                return self._send({"error": "body demasiado grande"}, 413)
+            return self._start_job(op, params)
 
         return self._send({"error": "no encontrado"}, 404)
 
+    def _start_job(self, operation, params):
+        job_id = "j_" + uuid.uuid4().hex[:12]
+        jobs.create_job(job_id, operation, jobs.summarize(operation, params))
+        dispatch(job_id, operation, params)
+        return self._send({"job_id": job_id}, 202)
+
     def log_message(self, *args):
-        pass  # silenciar logs del HTTP server en el spike
+        pass
 
 
 def main():
