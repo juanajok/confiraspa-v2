@@ -49,16 +49,17 @@ Inspiración Omarchy (con matices): [updates](https://omarchy.org/manual/updates
 ┌─────────────────────────────────┐
 │  executor (privilegiado)        │  User=root (o capabilities mínimos)
 │  - lista EXPLÍCITA de ops       │  ProtectSystem=full, PrivateTmp=true,
-│  - valida params contra schema  │  memoria/CPU limitadas, sin red
-│  - llama a funciones permitidas │  (la web es la única que habla red)
+│  - valida params + destinos     │  memoria/CPU limitadas
+│  - llama a funciones permitidas │  (red: solo ops install/update)
 └─────────────────────────────────┘
 ```
 
 **Reglas del executor:**
 - Cada `operation` mapea a **una** función/script del core con **argumentos fijos** derivados de parámetros validados (no de texto libre).
-- La lista blanca es cerrada y versionada: `app.install`, `app.uninstall`, `app.start`, `app.stop`, `storage.prepare`, `storage.mount`, `backup.run`, `backup.restore`, `system.update`, `setup.apply`, `user.set_password`, etc.
-- El executor **redacta** la salida (nunca devuelve contraseñas ni tokens) antes de responder.
-- Toda operación es **idempotente y comprobable**: reutiliza los scripts ya auditados (`install.sh --only`, `20-storage.sh`, `backup_*.sh`, `restore_apps.sh`) que ya son idempotentes y tienen tests.
+- La allowlist no es solo de nombres: cada operación declara un **esquema de parámetros** (tipos, rangos, allowlists) y **acota destinos y efectos** (p. ej. `storage.*` resuelve el UUID a un dispositivo real vía `realpath`/`blkid`, nunca una ruta libre; `app.*` solo acepta IDs del catálogo).
+- **Red por operación:** `install`/`update` necesitan red (descargar paquetes); el resto no. A corto plazo el executor corre con red y la restricción es *por operación*; a medio plazo se pueden separar en servicios systemd distintos con políticas distintas.
+- El executor **redacta** la salida (nunca devuelve contraseñas ni tokens) y la **trunca** a un tamaño máximo.
+- Solo se exponen operaciones con **implementación idempotente y testeada**. `uninstall`, `restore`, `update` y "rollback del sistema" se añaden **cuando** demuestren esas garantías; hoy la promesa real es recuperación de **configuración** (`restore_apps.sh`), no del sistema completo.
 
 ---
 
@@ -139,7 +140,8 @@ GET  /api/v1/apps/{id}/logs        → logs redactados
 
 # Almacenamiento
 GET  /api/v1/storage/devices       → blkid: dispositivos, tamaño, UUID, montado
-POST /api/v1/storage/{uuid}/prepare → resumen de pérdida de datos (requiere confirm_token en el siguiente)
+POST /api/v1/storage/{uuid}/preview → resumen {device, capacity, data_to_lose}; devuelve confirm_token ligado a uuid+estado, con caducidad
+POST /api/v1/storage/{uuid}/prepare → job (requiere confirm_token; re-verifica el disco justo antes de formatear)
 POST /api/v1/storage/{uuid}/mount  → job
 POST /api/v1/storage/{uuid}/unmount→ job
 
@@ -165,8 +167,10 @@ GET  /api/v1/jobs/{id}             → estado/progreso/resultado
 
 ### 7.1 Primer arranque (sin terminal)
 1. Flashear imagen (o `bootstrap` documentado con *un* comando).
-2. Desde otro dispositivo, abrir `http://raspberrypi.local`.
-3. Wizard: idioma → crear cuenta admin → elegir perfil → revisar → aplicar (job).
+2. En el primer arranque el sistema genera: **certificado TLS autofirmado** + **secreto de emparejamiento único** (se muestra solo en consola/log del dispositivo, fuera de banda).
+3. Desde otro dispositivo, abrir `https://raspberrypi.local` (aceptar el cert autofirmado) e introducir el **secreto de emparejamiento**.
+4. Crear cuenta admin (con contraseña) → la sesión queda establecida con cookie `Secure`.
+5. Wizard: idioma → elegir perfil → revisar → aplicar (job).
 4. El sistema aplica todo (usuario, discos, apps, firewall, backups) y muestra progreso.
 
 ### 7.2 Configuración por perfiles
@@ -195,6 +199,8 @@ GET  /api/v1/jobs/{id}             → estado/progreso/resultado
 | Ámbito | Decisión |
 |---|---|
 | **Autenticación** | Cuenta admin creada en primer arranque (sin credenciales predefinidas); contraseña con hash (argon2/bcrypt). |
+| **Primer alta** | **Secreto de emparejamiento** único, entregado fuera de banda (consola/log) y de un solo uso, para establecer la confianza inicial antes de que exista la cuenta admin. |
+| **Transporte** | La UI se sirve por **HTTPS** (cert autofirmado generado en primer arranque) para que `Secure` sea real. No se usa HTTP para sesiones. |
 | **Sesión** | Cookie `HttpOnly + Secure + SameSite=Strict`, con rotación de token. |
 | **CSRF** | Token CSRF obligatorio en `POST/PUT/DELETE` (doble submit o `Origin`/`Referer` + token), según [OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html). |
 | **Privilegios** | Web **sin root**; executor privilegiado con allowlist y parámetros validados. Véase `systemd.exec` ([man](https://manpages.debian.org/testing/systemd/systemd.exec.5.en.html)): `NoNewPrivileges`, `ProtectSystem`, `ProtectHome`, `PrivateTmp`, restricción de memoria/CPU, sin red en el executor. |
@@ -214,7 +220,7 @@ GET  /api/v1/jobs/{id}             → estado/progreso/resultado
 6. Un `GET` de cualquier recurso **nunca** devuelve contraseñas/tokens.
 7. Un `POST` con `app_id` fuera del catálogo (o un intento de inyectar un nombre de script) es **rechazado** con 400/404.
 8. Un `POST` cross-site sin token CSRF es **rechazado**.
-9. Toda operación es **idempotente** (re-ejecutar no rompe) y su resultado es **comprobable** (logs/job + tests).
+9. Las operaciones **expuestas en la API** son idempotentes (re-ejecutar no rompe) y su resultado es **comprobable** (logs/job + tests). Las que aún no lo demuestran (`uninstall`, `restore`, `update`) no se exponen todavía.
 
 ---
 
